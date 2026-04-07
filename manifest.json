@@ -1,0 +1,25 @@
+{
+  "name": "槟城乔治镇两周年纪念之旅",
+  "short_name": "槟城地图",
+  "description": "槟城乔治镇 5 天行程互动地图 · PWA",
+  "start_url": "./trip-map.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f172a",
+  "theme_color": "#0d9488",
+  "lang": "zh-CN",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

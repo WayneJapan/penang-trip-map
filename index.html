@@ -1,0 +1,1631 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f172a" media="(prefers-color-scheme: dark)">
+<meta name="color-scheme" content="light dark">
+<title>槟城乔治镇两周年纪念之旅 · 互动地图 v16</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<style>
+:root {
+  --bg: #ffffff; --surface: #ffffff; --hover: #f1f3f4;
+  --text: #1a1a2e; --text2: #6b7280; --border: #e5e7eb;
+  --blue: #3b82f6; --green: #10b981; --red: #ef4444; --amber: #f59e0b;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,.1), 0 1px 2px rgba(0,0,0,.06);
+  --shadow-md: 0 4px 6px rgba(0,0,0,.07), 0 2px 4px rgba(0,0,0,.06);
+  --shadow-lg: 0 10px 25px rgba(0,0,0,.1), 0 4px 10px rgba(0,0,0,.05);
+  --radius: 12px; --pill: 999px;
+  --tile-url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+}
+/* ===== DARK MODE ===== */
+[data-theme="dark"] {
+  --bg: #0f172a; --surface: #1e293b; --hover: #334155;
+  --text: #e2e8f0; --text2: #94a3b8; --border: #334155;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,.3), 0 1px 2px rgba(0,0,0,.2);
+  --shadow-md: 0 4px 6px rgba(0,0,0,.25), 0 2px 4px rgba(0,0,0,.2);
+  --shadow-lg: 0 10px 25px rgba(0,0,0,.35), 0 4px 10px rgba(0,0,0,.25);
+}
+[data-theme="dark"] .mk-badge{border-color:#1e293b}
+[data-theme="dark"] .pdetail-inner .notes{background:#0f172a}
+[data-theme="dark"] .strip-head{background:#0f172a;border-color:#334155}
+[data-theme="dark"] .opt-pill{background:#334155;color:#94a3b8}
+[data-theme="dark"] .fchip{border-color:rgba(255,255,255,.1)}
+[data-theme="dark"] .tchip{background:rgba(30,41,59,.92);border-color:rgba(255,255,255,.06)}
+[data-theme="dark"] .tmode{background:#0f172a}
+[data-theme="dark"] .tmode.on{background:#1e3a5f;color:#60a5fa;border-color:#3b82f6}
+[data-theme="dark"] .leaflet-control-zoom a{background:#1e293b!important;color:#e2e8f0!important;border-color:#334155!important}
+[data-theme="dark"] .leaflet-popup-content-wrapper{background:#1e293b;color:#e2e8f0}
+[data-theme="dark"] .leaflet-popup-tip{background:#1e293b}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body,html{width:100%;height:100%;font-family:'Inter','Helvetica Neue',Arial,sans-serif;color:var(--text);overflow:hidden;-webkit-font-smoothing:antialiased}
+button{background:none;border:none;cursor:pointer;font-family:inherit;color:inherit}
+svg.ic{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+
+/* ===== MAP ===== */
+#map{position:absolute;top:0;left:0;right:0;bottom:0;z-index:1}
+.leaflet-control-attribution{font-size:9px!important;opacity:.5}
+.custom-marker{background:none!important;border:none!important}
+/* Marker: emoji center + number badge */
+.mk-wrap{position:relative;width:38px;height:38px}
+.mk-body{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;box-shadow:0 2px 8px rgba(0,0,0,.25);transition:transform .15s}
+.mk-badge{position:absolute;top:-4px;right:-4px;min-width:18px;height:18px;border-radius:9px;background:#1e293b;color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 4px;box-shadow:0 1px 3px rgba(0,0,0,.3);border:2px solid #fff}
+
+/* ===== TOP BAR ===== */
+.topbar{position:fixed;top:12px;left:12px;right:12px;z-index:1000;display:flex;gap:8px;align-items:center;max-width:480px;margin:0 auto;pointer-events:none}
+.topbar>*{pointer-events:auto}
+.search-pill{flex:1;height:44px;background:var(--surface);border-radius:var(--pill);box-shadow:var(--shadow-md);display:flex;align-items:center;padding:0 6px;gap:2px}
+.search-pill input{flex:1;height:100%;border:none;outline:none;background:none;font-size:14px;padding:0 8px;color:var(--text)}
+.search-pill input::placeholder{color:var(--text2)}
+.ibtn{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--text2);transition:all .15s}
+.ibtn:hover,.ibtn:active{background:var(--hover);color:var(--text)}
+
+/* ===== DAY CHIPS ===== */
+.chips{position:fixed;top:68px;left:0;right:0;max-width:480px;margin:0 auto;z-index:1000;display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding:4px 12px;pointer-events:auto}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex-shrink:0;padding:6px 14px;border-radius:var(--pill);font-size:12px;font-weight:600;background:var(--surface);box-shadow:var(--shadow-sm);cursor:pointer;transition:all .2s;border:2px solid transparent;white-space:nowrap;display:flex;align-items:center;gap:5px}
+.chip.on{color:#fff}
+.chip:not(.on):hover{background:var(--hover)}
+.chip-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+
+/* ===== SIDEBAR SECTIONS ===== */
+.sb-section{padding:0 20px}
+.sb-label{font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:1px;padding:12px 0 6px;display:flex;align-items:center;gap:6px}
+.sb-label::after{content:'';flex:1;height:1px;background:var(--border)}
+.sb-divider{height:1px;background:var(--border);margin:0}
+
+/* ===== FILTER CHIPS (itinerary type filter) ===== */
+.filter-bar{display:flex;gap:6px;flex-wrap:wrap;padding:4px 0 8px}
+.fchip{flex-shrink:0;padding:5px 12px;border-radius:var(--pill);font-size:11px;font-weight:600;background:var(--surface);cursor:pointer;transition:all .2s;white-space:nowrap;display:flex;align-items:center;gap:4px;color:var(--text2);border:1.5px solid rgba(0,0,0,.1);box-shadow:var(--shadow-sm)}
+.fchip.on{background:var(--text);color:#fff;border-color:var(--text)}
+.fchip:not(.on):hover{background:var(--hover)}
+
+/* ===== NEARBY CHIPS ===== */
+.nearby-section{padding:0 20px}
+[data-theme="dark"] .tchip{background:rgba(30,41,59,.92)}
+.type-bar{display:flex;gap:5px;flex-wrap:wrap;padding:4px 0 8px}
+.tchip{flex-shrink:0;padding:5px 10px;border-radius:var(--pill);font-size:10px;font-weight:600;background:rgba(255,255,255,.92);cursor:pointer;transition:all .2s;white-space:nowrap;display:flex;align-items:center;gap:3px;color:var(--text2);border:1.5px solid rgba(0,0,0,.06);box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.tchip.on{background:#3b82f6;color:#fff;border-color:#3b82f6}
+.tchip:not(.on):hover{background:#e5e7eb}
+
+/* ===== TRANSPORT MODE SELECTOR ===== */
+.transport-bar{display:flex;gap:4px;padding:6px 0 10px}
+.tmode{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 4px;border-radius:10px;cursor:pointer;transition:all .2s;font-size:9px;font-weight:600;color:var(--text2);background:#f9fafb;border:1.5px solid transparent}
+.tmode.on{background:#eff6ff;color:#2563eb;border-color:#3b82f6}
+.tmode:hover:not(.on){background:#f1f5f9}
+.tmode svg{width:20px;height:20px}
+
+/* ===== NEARBY POI markers ===== */
+.poi-marker{background:none!important;border:none!important}
+.poi-dot{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;opacity:.7;transition:opacity .2s,transform .2s;cursor:pointer;background:rgba(255,255,255,.9);box-shadow:0 1px 5px rgba(0,0,0,.2);border:1.5px solid rgba(0,0,0,.1)}
+.poi-dot:hover{opacity:1;transform:scale(1.4);z-index:999;box-shadow:0 3px 10px rgba(0,0,0,.3)}
+
+/* ===== RIGHT FAB COLUMN ===== */
+.fabs{position:fixed;right:12px;z-index:950;display:flex;flex-direction:column;gap:10px}
+.fabs.top-fabs{top:12px}
+.fabs.bot-fabs{bottom:100px}
+.fab{width:42px;height:42px;border-radius:50%;background:var(--surface);box-shadow:var(--shadow-md);display:flex;align-items:center;justify-content:center;color:var(--text2);transition:all .15s}
+.fab:hover{color:var(--blue);box-shadow:var(--shadow-lg)}
+.fab.active{color:#fff;background:var(--blue)}
+.fab .fab-badge{position:absolute;top:-2px;right:-2px;min-width:16px;height:16px;border-radius:8px;background:var(--green);color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 3px}
+
+
+/* ===== OFFLINE PRELOAD MODAL ===== */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);backdrop-filter:blur(4px);z-index:3000;display:none;align-items:center;justify-content:center;padding:20px}
+.modal-overlay.show{display:flex}
+.modal{background:var(--surface);border-radius:16px;padding:24px;width:100%;max-width:360px;box-shadow:var(--shadow-lg)}
+.modal h3{font-size:16px;font-weight:700;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.modal p{font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:16px}
+.modal .progress-wrap{height:6px;background:var(--hover);border-radius:3px;overflow:hidden;margin-bottom:12px}
+.modal .progress-bar{height:100%;background:linear-gradient(90deg,#0d9488,#3b82f6);border-radius:3px;width:0%;transition:width .3s}
+.modal .modal-status{font-size:12px;color:var(--text2);text-align:center;min-height:18px}
+.modal-actions{display:flex;gap:8px;margin-top:16px}
+.modal-actions button{flex:1;padding:10px 16px;border-radius:var(--pill);font-size:13px;font-weight:600;cursor:pointer;transition:all .15s}
+.modal-actions .btn-primary{background:linear-gradient(135deg,#0d9488,#3b82f6);color:#fff;border:none}
+.modal-actions .btn-primary:active{opacity:.85}
+.modal-actions .btn-secondary{background:var(--hover);color:var(--text);border:1px solid var(--border)}
+
+/* ===== GESTURE HANDLE ===== */
+.gesture-handle{display:none;width:36px;height:4px;border-radius:2px;background:rgba(0,0,0,.15);margin:8px auto 0;flex-shrink:0}
+[data-theme="dark"] .gesture-handle{background:rgba(255,255,255,.2)}
+@media(max-width:767px){
+  .gesture-handle{display:block}
+  /* Hide sections that are inside sidebar on mobile — they'll be in the panel */
+  .sb-section,.sb-divider,.companion-section,.nearby-section{display:none}
+}
+
+/* ===== GPS PULSE ===== */
+@keyframes pulse-ring{0%{transform:scale(.5);opacity:1}100%{transform:scale(2.5);opacity:0}}
+.gps-pulse{position:relative}
+.gps-pulse::after{content:'';position:absolute;inset:-8px;border-radius:50%;background:rgba(59,130,246,.3);animation:pulse-ring 2s ease-out infinite}
+
+/* ===== ARRIVAL TOAST ===== */
+.arrival-toast{background:linear-gradient(135deg,#059669,#10b981)!important}
+
+/* ===== CHECKIN BADGE ===== */
+.checkin-badge{display:inline-flex;align-items:center;gap:3px;padding:1px 6px;border-radius:var(--pill);background:#d1fae5;color:#059669;font-size:10px;font-weight:700}
+[data-theme="dark"] .checkin-badge{background:#064e3b;color:#34d399}
+
+/* ===== COMPANION SECTION ===== */
+.companion-section{padding:0 20px}
+.companion-bar{display:flex;gap:6px;flex-wrap:wrap;padding:4px 0 8px}
+.comp-chip{display:flex;align-items:center;gap:6px;padding:6px 12px;border-radius:var(--pill);font-size:11px;font-weight:600;background:var(--surface);border:1.5px solid var(--border);box-shadow:var(--shadow-sm);cursor:pointer;transition:all .2s}
+.comp-chip.online{border-color:#10b981}
+.comp-chip .comp-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.comp-chip .comp-dot.online{background:#10b981;box-shadow:0 0 6px rgba(16,185,129,.5)}
+.comp-chip .comp-dot.offline{background:#94a3b8}
+.comp-name-input{border:none;outline:none;background:transparent;font:inherit;color:var(--text);width:80px;font-size:11px;font-weight:600}
+.comp-name-input::placeholder{color:var(--text2)}
+
+/* ===== DRAG TO REORDER ===== */
+.drag-handle{width:28px;display:flex;align-items:center;justify-content:center;color:var(--text2);cursor:grab;flex-shrink:0;touch-action:none;-webkit-user-select:none;user-select:none}
+.drag-handle:active{cursor:grabbing}
+.drag-handle svg{width:16px;height:16px}
+.prow.dragging{opacity:.4;background:var(--hover)}
+.prow.drag-over-top{box-shadow:inset 0 3px 0 var(--blue)}
+.prow.drag-over-bot{box-shadow:inset 0 -3px 0 var(--blue)}
+.drag-ghost{position:fixed;z-index:9999;pointer-events:none;opacity:.85;background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow-lg);padding:8px 14px;font-size:13px;font-weight:600;max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* ===== BOTTOM STRIP (compact, non-intrusive) ===== */
+.bot-strip{position:fixed;bottom:0;left:0;right:0;z-index:900;transition:transform .3s cubic-bezier(.4,0,.2,1);padding-bottom:env(safe-area-inset-bottom,8px);will-change:transform}
+.bot-strip.closed .panel{max-height:0;padding:0 16px;overflow:hidden;opacity:0}
+.bot-strip.closed .strip-head svg.arr{transform:rotate(180deg)}
+.bot-strip.dragging{transition:none!important}
+
+/* ===== MOBILE PANEL SECTIONS (injected into panel on mobile) ===== */
+.mobile-sections{display:none}
+@media(max-width:767px){
+  .mobile-sections{display:block;padding:8px 4px 0;border-top:1px solid var(--border)}
+  .mobile-sections .msec-label{font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.8px;padding:8px 0 4px}
+  .mobile-sections .msec-row{display:flex;gap:5px;flex-wrap:wrap;padding:2px 0 8px}
+}
+
+.strip-head{display:flex;align-items:center;justify-content:space-between;padding:8px 16px 4px;background:var(--surface);border-radius:16px 16px 0 0;box-shadow:var(--shadow-lg);cursor:pointer;user-select:none}
+.strip-title{font-size:13px;font-weight:600;display:flex;align-items:center;gap:8px}
+.strip-title .badge{font-size:11px;font-weight:700;background:var(--blue);color:#fff;border-radius:var(--pill);padding:2px 8px}
+.strip-meta{font-size:11px;color:var(--text2);display:flex;gap:12px;align-items:center}
+.strip-meta span{display:flex;align-items:center;gap:3px}
+svg.arr{width:18px;height:18px;transition:transform .3s}
+
+/* ===== PANEL (scrollable list) ===== */
+.panel{max-height:40vh;overflow-y:auto;-webkit-overflow-scrolling:touch;background:var(--surface);padding:4px 16px 12px;transition:all .3s cubic-bezier(.4,0,.2,1);opacity:1}
+
+/* ===== OPT BUTTONS inside panel header ===== */
+.opt-row{display:flex;gap:6px;padding:6px 0 8px}
+.opt-pill{flex:1;padding:7px 0;border-radius:var(--pill);font-size:11px;font-weight:600;background:#f3f4f6;text-align:center;transition:all .15s;display:flex;align-items:center;justify-content:center;gap:4px;color:var(--text2)}
+.opt-pill:hover{background:var(--blue);color:#fff}
+.opt-pill svg{width:14px;height:14px}
+
+/* ===== PLACE ROW ===== */
+.prow{display:flex;align-items:center;gap:10px;padding:10px 4px;border-radius:8px;cursor:pointer;transition:background .12s}
+.prow:hover{background:var(--hover)}
+.prow.off{opacity:.35}
+.pnum{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;flex-shrink:0}
+.pinfo{flex:1;min-width:0}
+.pname{font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:4px}
+.pmeta{font-size:11px;color:var(--text2);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pmeta .rat{color:var(--amber);font-weight:600}
+.pbtn{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--text2);flex-shrink:0;transition:all .12s}
+.pbtn:hover{background:var(--hover);color:var(--blue)}
+.pbtn svg{width:16px;height:16px}
+.pbtn.active{color:var(--blue)}
+
+/* ===== DETAIL CARD (expandable under place row) ===== */
+.pdetail{max-height:0;overflow:hidden;transition:max-height .25s cubic-bezier(.4,0,.2,1),padding .25s;padding:0 4px 0 40px}
+.pdetail.open{max-height:300px;padding:4px 4px 10px 40px}
+.pdetail-inner{font-size:12px;color:var(--text2);line-height:1.6}
+.pdetail-inner .dl{display:flex;gap:6px;align-items:baseline;margin-bottom:2px}
+.pdetail-inner .dl-k{color:var(--text);font-weight:600;white-space:nowrap;min-width:40px}
+.pdetail-inner .dl-v{flex:1}
+.pdetail-inner .notes{margin-top:6px;padding:6px 10px;background:#f9fafb;border-radius:6px;font-size:11px;line-height:1.5;color:var(--text)}
+.pdetail-inner .nav-link{display:inline-flex;align-items:center;gap:4px;margin-top:8px;padding:5px 12px;background:var(--blue);color:#fff;border-radius:var(--pill);font-size:11px;font-weight:600;text-decoration:none;transition:opacity .15s}
+.pdetail-inner .nav-link:hover{opacity:.85}
+
+/* ===== RATING PILLS ===== */
+.rat-row{display:flex;flex-wrap:wrap;gap:5px;margin-top:2px}
+.rat-pill{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:var(--pill);font-size:11px;font-weight:600;background:#fef3c7;color:#92400e;text-decoration:none;transition:all .12s;border:1px solid #fde68a}
+.rat-pill:hover{background:#fde68a;transform:scale(1.03)}
+.rat-pill .rp-score{font-weight:700;color:#b45309}
+.rat-pill .rp-src{font-weight:400;color:#92400e;font-size:10px}
+
+/* ===== SEGMENT CONNECTOR ===== */
+.seg{display:flex;align-items:center;gap:6px;padding:0 4px 0 38px;font-size:10px;color:var(--text2)}
+.seg-line{width:2px;height:14px;border-radius:1px}
+.seg svg{width:12px;height:12px}
+
+/* ===== TAG BADGE ===== */
+.tag{font-size:10px;font-weight:600;padding:1px 6px;border-radius:var(--pill);display:inline-flex;align-items:center}
+.tag-start{background:#d1fae5;color:#059669}
+.tag-end{background:#fee2e2;color:#dc2626}
+
+/* ===== CONTEXT MENU ===== */
+.ctx{position:fixed;background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow-lg);z-index:2000;min-width:160px;padding:6px 0;display:none}
+.ctx.show{display:block}
+.ctx-i{padding:9px 14px;font-size:13px;display:flex;align-items:center;gap:10px;cursor:pointer;transition:background .1s}
+.ctx-i:hover{background:var(--hover)}
+.ctx-i svg{width:16px;height:16px;color:var(--text2)}
+
+/* ===== TOAST ===== */
+.toast{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(.9);background:rgba(15,23,42,.88);color:#fff;padding:12px 24px;border-radius:var(--pill);font-size:13px;font-weight:500;z-index:3000;opacity:0;transition:all .25s;pointer-events:none;backdrop-filter:blur(8px);display:flex;align-items:center;gap:8px}
+.toast.on{opacity:1;transform:translate(-50%,-50%) scale(1)}
+@keyframes spin{to{transform:rotate(360deg)}}
+.toast .spinner{width:16px;height:16px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite}
+
+/* ===== DESKTOP SIDEBAR LAYOUT (min-width: 768px) ===== */
+@media (min-width: 768px) {
+  /* Increase baseline readability metrics */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.25); }
+
+  .poi-dot { width: 28px; height: 28px; font-size: 15px; border-width: 2px; }
+  .mk-body { width: 44px; height: 44px; font-size: 22px; border-radius: 12px; }
+  .mk-badge { top: -6px; right: -6px; min-width: 22px; height: 22px; border-radius: 11px; font-size: 13px; }
+  .tchip, .fchip { font-size: 12px; padding: 6px 14px; gap: 6px; }
+  .tchip .fic { font-size: 10px; }
+  .chip { font-size: 14px; padding: 8px 18px; }
+  
+  /* Layout Architecture */
+  .sidebar {
+    position: absolute; top: 0; left: 0; bottom: 0; width: 380px;
+    background: var(--surface); z-index: 2000;
+    display: flex; flex-direction: column;
+    box-shadow: 2px 0 15px rgba(0,0,0,0.1);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    pointer-events: auto;
+  }
+  .sidebar.closed { transform: translateX(-100%); }
+  
+  .sidebar-toggle {
+    display: flex !important; position: absolute; right: -32px; top: 50%; transform: translateY(-50%);
+    width: 32px; height: 64px; background: var(--surface);
+    border-radius: 0 12px 12px 0; box-shadow: 4px 0 8px rgba(0,0,0,0.06);
+    align-items: center; justify-content: center; cursor: pointer;
+    border-left: 1px solid var(--border); color: var(--text2);
+    transition: color 0.2s, background 0.2s;
+  }
+  .sidebar-toggle:hover { color: var(--blue); background: #f8fafc; }
+  .sidebar.closed .sidebar-toggle svg { transform: rotate(180deg); }
+
+  /* Reset Mobile Fixed Positions inside Sidebar */
+  .topbar, .chips, .bot-strip {
+    position: relative !important;
+    top: auto !important; left: auto !important; right: auto !important; bottom: auto !important;
+    max-width: none !important; margin: 0 !important;
+  }
+  
+  /* Internal Sidebar Flow */
+  .topbar { padding: 16px 20px 8px; }
+  .search-pill { box-shadow: 0 2px 6px rgba(0,0,0,0.08); border: 1px solid var(--border); height: 48px; }
+  .search-pill input { font-size: 15px; }
+  
+  .chips { padding: 4px 20px 8px; flex-wrap: wrap; }
+  
+  .bot-strip { flex: 1; display: flex; flex-direction: column; overflow: hidden; padding-bottom: 0; background: transparent; }
+  
+  .strip-head { cursor: default; border-radius: 0; box-shadow: none; padding: 12px 20px; background: #f8fafc; border-bottom: 1px solid var(--border); }
+  .strip-title { font-size: 15px; }
+  .strip-head svg.arr { display: none; }
+  
+  .panel { max-height: none !important; flex: 1; display: flex; flex-direction: column; overflow: hidden; opacity: 1 !important; padding: 0; }
+  .opt-row { padding: 8px 20px 4px; }
+  #list { flex: 1; overflow-y: auto; padding: 4px 20px 16px; }
+  
+  /* Map controls push */
+  .leaflet-left .leaflet-control { transition: margin-left 0.3s; margin-left: 390px; }
+  .sidebar.closed ~ #map .leaflet-left .leaflet-control { margin-left: 10px; }
+}
+@media (max-width: 767px) {
+  .sidebar { display: contents; }
+  .sidebar-toggle { display: none; }
+}
+</style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<!-- DESKTOP SIDEBAR WRAPPER -->
+<div class="sidebar" id="sidebar">
+  <div class="sidebar-toggle" onclick="document.getElementById('sidebar').classList.toggle('closed');">
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
+  </div>
+
+  <!-- TOP BAR -->
+  <div class="topbar">
+    <div class="search-pill">
+      <button class="ibtn" onclick="togglePanel()" title="地点列表">
+        <svg class="ic" viewBox="0 0 24 24"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <input id="q" placeholder="搜索地点..." autocomplete="off">
+      <button class="ibtn" onclick="locateMe()" title="我的位置">
+        <svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- DAY CHIPS -->
+  <div class="chips" id="chips"></div>
+
+  <!-- FILTER + TRANSPORT SECTION -->
+  <div class="sb-section">
+    <div class="sb-label">筛选</div>
+    <div class="filter-bar" id="filterbar">
+      <div class="fchip" data-ft="restaurant" onclick="filterType('restaurant')">🍜 餐饮</div>
+      <div class="fchip" data-ft="attraction" onclick="filterType('attraction')">🏛️ 景点</div>
+      <div class="fchip" data-ft="hotel" onclick="filterType('hotel')">🏨 酒店</div>
+      <div class="fchip" data-ft="transport" onclick="filterType('transport')">🚉 交通</div>
+      <div class="fchip" data-ft="nature" onclick="filterType('nature')">🌿 自然</div>
+      <div class="fchip" data-ft="cafe" onclick="filterType('cafe')">☕ 咖啡</div>
+    </div>
+
+    <div class="sb-label">交通方式</div>
+    <div class="transport-bar" id="transportbar">
+      <div class="tmode on" data-mode="driving" onclick="setTransport('driving')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 17h14M5 17a2 2 0 01-2-2V9a2 2 0 012-2h1l2-3h8l2 3h1a2 2 0 012 2v6a2 2 0 01-2 2M5 17v2m14-2v2"/><circle cx="7.5" cy="14" r="1.5"/><circle cx="16.5" cy="14" r="1.5"/></svg>
+        驾车
+      </div>
+      <div class="tmode" data-mode="walking" onclick="setTransport('walking')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="5" r="2"/><path d="M10 22l2-7 3 3v6M14 13l-4-1-1.5-5.5"/><path d="M8.5 7.5l4 1 2 3"/></svg>
+        步行
+      </div>
+      <div class="tmode" data-mode="cycling" onclick="setTransport('cycling')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="18.5" cy="17.5" r="3.5"/><path d="M15 6a1 1 0 100-2 1 1 0 000 2zM12 17.5V14l-3-3 4-3 2 3h3"/></svg>
+        骑行
+      </div>
+    </div>
+  </div>
+
+  <div class="sb-divider"></div>
+
+  <!-- COMPANION SECTION -->
+  <div class="companion-section" id="companionSection">
+    <div class="sb-label">旅伴共享</div>
+    <div class="companion-bar" id="companionBar">
+      <div class="comp-chip" id="selfChip">
+        <div class="comp-dot online"></div>
+        <input class="comp-name-input" id="myNameInput" placeholder="你的名字" maxlength="8" value="">
+      </div>
+      <button class="comp-chip" onclick="toggleCompanion()" id="compToggle" style="color:var(--blue)">
+        <svg class="ic" viewBox="0 0 24 24" style="width:14px;height:14px"><path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4-4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
+        连接旅伴
+      </button>
+    </div>
+  </div>
+
+  <div class="sb-divider"></div>
+
+  <!-- NEARBY / 周边 SECTION -->
+  <div class="nearby-section">
+    <div class="sb-label">周边探索</div>
+    <div class="type-bar" id="typebar">
+      <div class="tchip" data-type="restaurant" onclick="nearbyToggle('restaurant')">🍜 餐饮</div>
+      <div class="tchip" data-type="hotel" onclick="nearbyToggle('hotel')">🏨 酒店</div>
+      <div class="tchip" data-type="attraction" onclick="nearbyToggle('attraction')">🏛️ 景点</div>
+      <div class="tchip" data-type="transport" onclick="nearbyToggle('transport')">🚉 交通</div>
+      <div class="tchip" data-type="shopping" onclick="nearbyToggle('shopping')">🛒 商超</div>
+      <div class="tchip" data-type="cafe" onclick="nearbyToggle('cafe')">☕ 咖啡</div>
+      <div class="tchip" data-type="convenience" onclick="nearbyToggle('convenience')">🏪 便利店</div>
+      <div class="tchip" data-type="toilets" onclick="nearbyToggle('toilets')">🚻 厕所</div>
+      <div class="tchip" data-type="atm" onclick="nearbyToggle('atm')">🏧 ATM</div>
+      <div class="tchip" data-type="pharmacy" onclick="nearbyToggle('pharmacy')">💊 药店</div>
+    </div>
+  </div>
+
+  <div class="sb-divider"></div>
+
+  <!-- BOTTOM STRIP + PANEL -->
+  <div class="bot-strip" id="bstrip">
+    <div class="gesture-handle" id="gestureHandle"></div>
+    <div class="strip-head" onclick="togglePanel()">
+      <div class="strip-title">
+        🗺️ 行程
+        <span class="badge" id="cnt">0</span>
+        <span class="strip-meta" id="summary"></span>
+      </div>
+      <svg class="ic arr" viewBox="0 0 24 24"><polyline points="18 15 12 9 6 15"/></svg>
+    </div>
+    
+    <div class="panel" id="panel">
+      <!-- QUICK ACTIONS (inside panel, not floating) -->
+      <div class="opt-row" id="quickActions">
+        <button class="opt-pill" onclick="showTodayItinerary()">
+          <svg viewBox="0 0 24 24" style="width:14px;height:14px" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg>
+          今日
+        </button>
+        <button class="opt-pill" onclick="navigateNext()">
+          <svg viewBox="0 0 24 24" style="width:14px;height:14px" fill="none" stroke="currentColor" stroke-width="2"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
+          下一站
+        </button>
+        <button class="opt-pill" onclick="optimizeRoute('recommended')">
+          <svg viewBox="0 0 24 24" style="width:14px;height:14px"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" fill="currentColor" stroke="none"/></svg>
+          优化
+        </button>
+      </div>
+      <div id="list"></div>
+      <!-- MOBILE-ONLY: filter + nearby sections injected here -->
+      <div class="mobile-sections" id="mobileSections">
+        <div class="msec-label">📍 筛选</div>
+        <div class="msec-row">
+          <div class="fchip" data-ft="restaurant" onclick="filterType('restaurant')">🍜 餐饮</div>
+          <div class="fchip" data-ft="attraction" onclick="filterType('attraction')">🏛️ 景点</div>
+          <div class="fchip" data-ft="hotel" onclick="filterType('hotel')">🏨 酒店</div>
+          <div class="fchip" data-ft="transport" onclick="filterType('transport')">🚉 交通</div>
+          <div class="fchip" data-ft="nature" onclick="filterType('nature')">🌿 自然</div>
+          <div class="fchip" data-ft="cafe" onclick="filterType('cafe')">☕ 咖啡</div>
+        </div>
+        <div class="msec-label">🔍 周边探索</div>
+        <div class="msec-row">
+          <div class="tchip" data-type="restaurant" onclick="nearbyToggle('restaurant')">🍜 餐饮</div>
+          <div class="tchip" data-type="hotel" onclick="nearbyToggle('hotel')">🏨 酒店</div>
+          <div class="tchip" data-type="attraction" onclick="nearbyToggle('attraction')">🏛️ 景点</div>
+          <div class="tchip" data-type="cafe" onclick="nearbyToggle('cafe')">☕ 咖啡</div>
+          <div class="tchip" data-type="convenience" onclick="nearbyToggle('convenience')">🏪 便利店</div>
+          <div class="tchip" data-type="toilets" onclick="nearbyToggle('toilets')">🚻 厕所</div>
+          <div class="tchip" data-type="atm" onclick="nearbyToggle('atm')">🏧 ATM</div>
+          <div class="tchip" data-type="pharmacy" onclick="nearbyToggle('pharmacy')">💊 药店</div>
+        </div>
+        <div class="msec-label">🔗 旅伴共享</div>
+        <div class="msec-row">
+          <div class="comp-chip" id="selfChipMobile">
+            <div class="comp-dot online"></div>
+            <input class="comp-name-input" id="myNameInputMobile" placeholder="你的名字" maxlength="8" value="" onchange="syncNameInputs(this.value)">
+          </div>
+          <button class="comp-chip" onclick="toggleCompanion()" id="compToggleMobile" style="color:var(--blue)">
+            <svg class="ic" viewBox="0 0 24 24" style="width:14px;height:14px"><path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4-4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
+            连接旅伴
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div> <!-- END SIDEBAR -->
+
+<!-- RIGHT FABs -->
+<div class="fabs bot-fabs">
+  <button class="fab" onclick="locateMe()" title="定位" id="fabLocate">
+    <svg class="ic" viewBox="0 0 24 24"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
+  </button>
+  <button class="fab" onclick="fitAll()" title="全览">
+    <svg class="ic" viewBox="0 0 24 24"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+  </button>
+  <button class="fab" onclick="toggleDarkMode()" title="暗色模式" id="fabDark">
+    <svg class="ic" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+  </button>
+</div>
+
+<!-- OFFLINE PRELOAD MODAL -->
+<div class="modal-overlay" id="preloadModal">
+  <div class="modal">
+    <h3>📥 离线地图缓存</h3>
+    <p>预加载槟城区域地图瓦片，出门时即使信号差也能查看地图。建议在酒店 WiFi 下操作。</p>
+    <div class="progress-wrap"><div class="progress-bar" id="preloadProgress"></div></div>
+    <div class="modal-status" id="preloadStatus">就绪</div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="hidePreloadModal()">关闭</button>
+      <button class="btn-primary" id="preloadBtn" onclick="startPreload()">开始预加载</button>
+    </div>
+  </div>
+</div>
+
+<!-- CONTEXT MENU -->
+<div class="ctx" id="ctx">
+  <div class="ctx-i" onclick="setStart()">
+    <svg viewBox="0 0 24 24"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
+    设为起点
+  </div>
+  <div class="ctx-i" onclick="setEnd()">
+    <svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+    设为终点
+  </div>
+  <div class="ctx-i" onclick="clearLock()">
+    <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 019.9-1"/></svg>
+    取消锁定
+  </div>
+  <div class="ctx-i" onclick="navTo()">
+    <svg viewBox="0 0 24 24"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
+    导航到此
+  </div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+</div>
+
+<script>
+const GJ = {"type": "FeatureCollection", "features": [{"type": "Feature", "geometry": {"type": "Point", "coordinates": [100.2751656, 5.2959898]}, "properties": {"name": "PEN Airport Arrival", "type": "transport", "day": 0, "hours": "全天", "notes": "11900 Bayan Lepas, Penang | Penang International Airport, 11900 Bayan Lepas, Penang, Malaysia", "poi_id": "penang-international-airport", "occurrence_id": "day-0-pen-airport-arrival", "canonical_name": "PEN Airport Arrival", "plan_type": "supporting", "option_group": "", "option_label": "", "sort_index": 1, "verification": "confirmed", "verification_method": "google_maps_search,nominatim,google_places_text_search", "verification_provider": "google_places", "provider_place_id": "ChIJb27SAeS_SjARUoo9S2zdOys", "provider_query": "PEN Airport Arrival Penang International Airport, 11900 Bayan Lepas, Penang, Malaysia", "location_mode": "international", "map_display": "include_confirmed", "source": "map-manifest"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [100.332934, 5.4214039]}, "properties": {"name": "Cititel Penang", "type": "hotel", "day": 1, "hours": "入住 15:00后", "notes": "66, Jln Penang, George Town, 10000 George Town, Pulau Pinang, Malaysia | 66 Jalan Penang, 10000 George Town, Penang, Malaysia", "poi_id": "cititel-penang", "occurrence_id": "day-1-cititel-penang", "canonical_name": "Cititel Penang", "plan_type": "fixed", "option_group": "", "option_label": "", "sort_index": 2, "verification": "confirmed", "verification_method": "nominatim,google_maps_search,google_geocoding", "verification_provider": "google_places", "provider_place_id": "ChIJ90R6HjreSjARVv8AxjhBhpw", "provider_query": "Cititel Penang 66 Jalan Penang, 10000 George Town, Penang, Malaysia", "location_mode": "international", "map_display": "include_confirmed", "source": "map-manifest"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [100.34312369999999, 5.4170812]}, "properties": {"name": "Rambar", "type": "restaurant", "day": 1, "hours": "Fri-Mon 5PM-12AM (Closed Tue-Wed)", "notes": "21G, Lebuh Pantai, George Town, 10300 George Town, Pulau Pinang | 21G, Lebuh Pantai, 10300, Georgetown, Penang", "poi_id": "rambar-penang", "occurrence_id": "day-1-rambar", "canonical_name": "Rambar", "plan_type": "fixed", "option_group": "", "option_label": "", "sort_index": 3, "verification": "confirmed", "verification_method": "nominatim,google_maps_search,google_places_text_search", "verification_provider": "google_places", "provider_place_id": "ChIJYe82TADDSjARHNObhliEvc4", "provider_query": "Rambar 21G, Lebuh Pantai, 10300, Georgetown, Penang", "location_mode": "international", "map_display": "include_confirmed", "source": "map-manifest"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [100.3354857, 5.415556700000001]}, "properties": {"name": "Ann & Bee's Handmade Ornament", "type": "shopping", "day": 2, "hours": "Daily 10AM-6PM", "notes": "139 - 1 - 05, Armenian Street, Heritage Hotel, Lebuh Carnarvon, George Town, 10100 George Town, Pulau Pinang | Heritage Hotel, 139-1-05 Armenian Street, Lebuh Carnarvon, George Town, 10100 George Town, Pulau Pinang, Malaysia", "poi_id": "ann-bees-handmade-ornament", "occurrence_id": "day-2-ann-bee-s-handmade-ornament", "canonical_name": "Ann & Bee's Handmade Ornament", "plan_type": "fixed", "option_group": "", "option_label": "", "sort_index": 4, "verification": "confirmed", "verification_method": "google_maps_search,user_confirmed_address,google_places_text_search", "verification_provider": "google_places", "provider_place_id": "ChIJ89bCfpHDSjARnz6gvIEhJ0o", "provider_query": "Ann & Bee's Handmade Ornament Heritage Hotel, 139-1-05 Armenian Street, Lebuh Carnarvon, George Town, 10100 George Town, Pulau Pinang, Malaysia", "location_mode": "international", "map_display": "include_confirmed", "source": "map-manifest"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [100.3275731, 5.4187555]}, "properties": {"name": "Green House Prawn Mee", "type": "restaurant", "day": 2, "hours": "Tue-Sun 4PM-10PM (Closed Mon)", "notes": "133A, Jalan Burma, George Town, 10050 George Town, Pulau Pinang | 133A, Jalan Burma, George Town, 10050, Penang, Malaysia", "poi_id": "green-house-prawn-mee", "occurrence_id": "day-2-green-house-prawn-mee", "canonical_name": "Green House Prawn Mee", "plan_type": "fixed", "option_group": "", "option_label": "", "sort_index": 5, "verification": "confirmed", "verification_method": "nominatim,google_maps_search,google_places_text_search", "verification_provider": "google_places", "provider_place_id": "ChIJEeoN2ZfDSjAREBQDFHrIeSA", "provider_query": "Green House Prawn Mee 133A, Jalan Burma, George Town, 10050, Penang, Malaysia", "location_mode": "international", "map_display": "include_confirmed", "source": "map-manifest"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [100.32813519999999, 5.4122027]}, "properties": {"name": "Hin Bus Depot", "type": "attraction", "day": 2, "hours": "Mon-Fri 12PM-7PM; Weekends 10AM-5PM", "notes": "31A, Jalan Gurdwara, 10300 George Town, Pulau Pinang | Jalan Burma, George Town, 10050 Penang, Malaysia", "poi_id": "hin-bus-depot", "occurrence_id": "day-2-hin-bus-depot", "canonical_name": "Hin Bus Depot", "plan_type": "fixed", "option_group": "", "option_label": "", "sort_index": 6, "verification": "confirmed", "verification_method": "google_maps_search,nominatim,google_places_text_search", "verification_provider": "google_places", "provider_place_id": "ChIJC9Wrb5XDSjARNErejgihS8s", "provider_query": "Hin Bus Depot Jalan Burma, George Town, 10050 Penang, Malaysia", "location_mode": "international", "map_display": "include_confirmed", "source": "map-manifest"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [100.3278938, 5.412001399999999]}, "properties": {"name": "Hin Market", "type": "shopping", "day": 2, "hours": "周六 10AM-5PM", "notes": "31a, Jalan Gurdwara, 10300 George Town, Pulau Pinang, Malaysia | Inside Hin Bus Depot, Jalan Burma, George Town, 10050 Penang, Malaysia", "poi_id": "hin-market", "occurrence_id": "day-2-hin-market", "canonical_name": "Hin Market", "plan_type": "fixed", "option_group": "", "option_label": "", "sort_index": 7, "verification": "confirmed", "verification_method": "google_maps_search,nominatim,google_geocoding", "verification_provider": "google_places", "provider_place_id": "ChIJIVcEZZXDSjARm-bwelln9J8", "provider_query": "Hin Market Inside Hin Bus Depot, Jalan Burma, George Town, 10050 Penang, Malaysia", "location_mode": "international", "map_display": "include_confirmed", "source": "map-manifest"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [100.3365879, 5.4156097999999995]}, "properties": {"name": "Jawi House Cafe Gallery", "type": "restaurant", "day": 2, "hours": "Daily 11AM-9:30PM", "notes": "85, Lbh Armenian, George Town, 10200 George Town, Pulau Pinang | 85, Lebuh Armenian, George Town, 10200, Penang, Malaysia", "poi_id": "jawi-house-cafe-gallery", "occurrence_id": "day-2-jawi-house-cafe-gallery", "canonical_name": "Jawi House Cafe Gallery", "plan_type": "fixed", "option_group": "", "option_label": "", "sort_index": 8, "verification": "confirmed", "verification_method": "nominatim,google_maps_search,google_places_text_search", "verification_provider": "google_places", "provider_place_id": "ChIJA0qphpHDSjARWgoT2acmVZI", "provider_query": "Jawi House Cafe Gallery 85, Lebuh Armenian, George Town, 10200, Penang, Malaysia", "location_mode": "international", "map_display": "include_confirmed", "source": "map-manifest"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [100.3389323, 5.4159141]}, "properties": {"name": "Kawan Shop", "type": "shopping", "day": 2, "hours": "Mon-Sat 9:30AM-5:30PM (Closed Sun)", "notes": "Ground Floor, 41, Lbh Chulia, Georgetown, 10200 George Town, Penang | Ground Floor, 41, Lebuh Chulia, Georgetown, Pulau Pinang, 10200", "poi_id": "kawan-shop", "occurrence_id": "day-2-kawan-shop", "canonical_name": "Kawan Shop", "plan_type": "fixed", "option_group": "", "option_label": "", "sort_index": 9, "verification": "confirmed", "verification_method": "nominatim,google_maps_search,google_places_text_search", "verification_provider": "google_places", "provider_place_id": "ChIJjZmOG47DSjARB5Ehbk8ViVE", "provider_query": "Kawan Shop Ground Floor, 41, Lebuh Chulia, Georgetown, Pulau Pinang, 10200", "location_mode": "international", "map_display": "include_confirmed", "source": "map-manifest"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [100.33268179999999, 5.4163993]}, "properties": {"name": "Kimberley Street Night Market (四大天王)", "type": "restaurant", "day": 2, "hours": "Nightly 6PM-11PM", "notes": "1, Jalan Sungai Ujong, George Town, 10100 George Town, Pulau Pinang | Day 2 夜间备选夜市点，放在互动地图供出发时勾选。", "poi_id": "kimberley-street-night-market", "occurrence_id": "day-2-kimberley-street-night-market", "canonical_name": "Kimberley Street Night Market (四大天王)", "plan_type": "supporting", "option_group": "", "option_label": "", "sort_index": 11, "verification": "confirmed", "verification_method": "nominatim,google_maps_search,google_places_text_search", "verification_provider": "google_places", "provider_place_id": "ChIJd5uXtpbDSjARyZMO6OlKKXo", "provider_query": "Kimberley Street Night Market (四大天王) Lebuh Kimberley, 10100 George Town, Penang, Malaysia", "location_mode": "international", "map_display": "include_confirmed", "source": "map-manifest"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [100.33572040000001, 5.4144079]}, "properties": {"name": "Lorong Lumut + Stewart St Murals (Route 4)", "type": "attraction", "day": 2, "hours": "24/7 户外", "notes": "25, Lorong Lumut, George Town, 10300 George Town, Pulau Pinang | Lorong Lumut, George Town, 10450 Penang, Malaysia", "poi_id": "lorong-lumut-murals", "occurrence_id": "day-2-lorong-lumut-stewart-st-murals", "canonical_name": "Lorong Lumut + Stewart St Murals (Route 4)", "plan_type": "fixed", "option_group": "", "option_label": "", "sort_index": 11, "verification": "confirmed", "verification_method": "google_maps_search,nominatim,google_places_text_search", "verification_provider": "google_places", "provider_place_id": "ChIJmYlXTTTDSjARWYgBrcOS65k", "provider_query": "Lorong Lumut + Stewart St Murals (Route 4) Lorong Lumut, George Town, 10450 Penang, Malaysia", "location_mode": "international", "map_display": "include_confirmed", "source": "map-manifest"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [100.33115579999999, 5.4166609999999995]}, "properties": {"name": "Penang Road Famous Assam Laksa", "type": "restaurant", "day": 2, "hours": "Daily", "notes": "5-7, Lebuh Keng Kwee, George Town, 10100 George Town, Pulau Pinang | Lebuh Keng Kwee, George Town, 10200 Penang, Malaysia", "poi_id": "penang-road-famous-assam-laksa", "occurrence_id": "day-2-penang-road-famous-assam-laksa", "canonical_name": "Penang Road Famous Assam Laksa", "plan_type": "fixed", "option_group": "", "option_label": "", "sort_index": 12, "verification": "confirmed", "verification_method": "google_maps_search,nominatim,google_places_text_search", "verification_provider": "google_places", "provider_place_id": "ChIJPdKG7JbDSjARYg9PFXn5Fj0", "provider_query": "Penang Road Famous Assam Laksa Lebuh Keng Kwee, George Town, 10200 Penang, Malaysia", "location_mode": "international", "map_display": "include_confirmed", "source": "map-manifest"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [100.3209488, 5.414801799999999]}, "properties": {"name": "Siam Road Char Kway Teow", "type": "restaurant", "day": 2, "hours": "Daily 3PM-11PM (Closed Mon)", "notes": "82, Jalan Siam, George Town, 10400 George Town, Pulau Pinang | 82, Jalan Siam, Georgetown, 10400, Malaysia", "poi_id": "siam-road-char-kway-teow", "occurrence_id": "day-2-siam-road-char-kway-teow", "canonical_name": "Siam Road Char Kway Teow", "plan_type": "fixed", "option_group": "", "option_label": "", "sort_index": 13, "verification": "confirmed", "verification_method": "nominatim,google_maps_search,google_places_text_search", "verification_provider": "google_places", "provider_place_id": "ChIJa4wKYLnDSjARULf7TkTGK9E", "provider_query": "Siam Road Char Kway Teow 82, Jalan Siam, Georgetown, 10400, Malaysia", "location_mode": "international", "map_display": "include_confirmed", "source": "map-manifest"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [100.329045, 5.4170172]}, "properties": {"name": "Sister Yao's Char Koay Kak", "type": "restaurant", "day": 2, "hours": "Likely daily daytime (confirm before visit)", "notes": "96, Lorong Macalister, George Town, 11400 George Town, Pulau Pinang | 96, Lorong Macalister, George Town, 11400, Penang, Malaysia", "poi_id": "sister-yaos-char-koay-kak", "occurrence_id": "day-2-sister-yao-s-char-koay-kak", "canonical_name": "Sister Yao's Char Koay Kak", "plan_type": "fixed", "option_group": "", "option_label": "", "sort_index": 14, "verification": "confirmed", "verification_method": "nominatim,google_maps_search,google_places_text_search", "verification_provider": "google_places", "provider_place_id": "ChIJX6PAQJbDSjARmOvbeQYY5v8", "provider_query": "Sister Yao's Char Koay Kak 96, Lorong Macalister, George Town, 11400, Penang, Malaysia", "location_mode": "international", "map_display": "include_confirmed", "source": "map-manifest"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [100.2154613, 5.4566761999999995]}, "properties": {"name": "Craft Batik Sdn Bhd", "type": "attraction", "day": 3, "hours": "14:30 开门", "notes": "651, MK2, SWD, Teluk Bahang, 11050 George Town, Pulau Pinang | 651 Mk 2 S.W.D, Teluk Bahang, 11050, Penang, Malaysia", "poi_id": "craft-batik-sdn-bhd", "occurrence_id": "day-3-craft-batik-sdn-bhd", "canonical_name": "Craft Batik Sdn Bhd", "plan_type": "fixed", "option_group": "", "option_label": "", "sort_index": 15, "verification": "confirmed", "verification_method": "google_maps_search,user_confirmed_address,google_places_text_search", "verification_provider": "google_places", "provider_place_id": "ChIJ7wQ62GHoSjARv_HJ7FLK6UA", "provider_query": "Craft Batik Sdn Bhd 651 Mk 2 S.W.D, Teluk Bahang, 11050, Penang, Malaysia", "location_mode": "international", "map_display": "include_confirmed", "source": "map-manifest"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [100.18414910000001, 5.4531477]}, "properties": {"name": "Penang National Park (Turtle Beach + Meromictic Lake)", "type": "nature", "day": 3, "hours": "8AM-4:30PM (last entry 3:30PM)", "notes": "Penang | Jalan Hassan, OFF, 11050 Penang, Malaysia (NP Headquarters)", "poi_id": "penang-national-park", "occurrence_id": "day-3-penang-national-park", "canonical_name": "Penang National Park (Turtle Beach + Meromictic Lake)", "plan_type": "fixed", "option_group": "", "option_label": "", "sort_index": 16, "verification": "confirmed", "verification_method": "google_maps_search,nominatim,google_places_text_search", "verification_provider": "google_places", "provider_place_id": "ChIJo8uDt7LpSjARM1OP6vPNYaM", "provider_query": "Penang National Park (Turtle Beach + Meromictic Lake) Jalan Hassan, OFF, 11050 Penang, Malaysia (NP Headquarters)", "location_mode": "international", "map_display": "include_confirmed", "source": "map-manifest"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [100.3397723, 5.412717499999999]}, "properties": {"name": "Chew Jetty", "type": "attraction", "day": 4, "hours": "Daylight hours", "notes": "Georgetown, 10300 George Town, Penang | 59A, Chew Jetty, Weld Quay, George Town, 10300, Penang, Malaysia", "poi_id": "chew-jetty", "occurrence_id": "day-4-chew-jetty", "canonical_name": "Chew Jetty", "plan_type": "fixed", "option_group": "", "option_label": "", "sort_index": 17, "verification": "confirmed", "verification_method": "nominatim,google_maps_search,google_places_text_search", "verification_provider": "google_places", "provider_place_id": "ChIJ50W1D43DSjARlPqYV1MqscE", "provider_query": "Chew Jetty 59A, Chew Jetty, Weld Quay, George Town, 10300, Penang, Malaysia", "location_mode": "international", "map_display": "include_confirmed", "source": "map-manifest"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [100.3099313, 5.4355512]}, "properties": {"name": "G Hotel Kelawai", "type": "hotel", "day": 4, "hours": "入住 15:00后", "notes": "2, Lorong Maktab, 10250 George Town, Pulau Pinang | 2, Jalan Kelawai, 10250 George Town, Penang, Malaysia", "poi_id": "g-hotel-kelawai", "occurrence_id": "day-4-g-hotel-kelawai", "canonical_name": "G Hotel Kelawai", "plan_type": "fixed", "option_group": "", "option_label": "", "sort_index": 18, "verification": "confirmed", "verification_method": "google_maps_search,nominatim,google_places_text_search", "verification_provider": "google_places", "provider_place_id": "ChIJT_-vTwHDSjAROYc7--YwMNw", "provider_query": "G Hotel Kelawai 2, Jalan Kelawai, 10250 George Town, Penang, Malaysia", "location_mode": "international", "map_display": "include_confirmed", "source": "map-manifest"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [100.311185, 5.4357359]}, "properties": {"name": "Gurney Paragon Mall", "type": "attraction", "day": 4, "hours": "10AM-10PM", "notes": "163d, Persiaran Gurney, 10250 George Town, Pulau Pinang | 163-D, Persiaran Gurney, 10250, Penang, Malaysia", "poi_id": "gurney-paragon-mall", "occurrence_id": "day-4-gurney-paragon-mall", "canonical_name": "Gurney Paragon Mall", "plan_type": "fixed", "option_group": "", "option_label": "", "sort_index": 19, "verification": "confirmed", "verification_method": "nominatim,google_maps_search,google_places_text_search", "verification_provider": "google_places", "provider_place_id": "ChIJHTeoOQbDSjARsTHDtwiCS9Y", "provider_query": "Gurney Paragon Mall 163-D, Persiaran Gurney, 10250, Penang, Malaysia", "location_mode": "international", "map_display": "include_confirmed", "source": "map-manifest"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [100.24609939999999, 5.4729969]}, "properties": {"name": "Gustoso By The Beach", "type": "restaurant", "day": 4, "hours": "6:30PM-10:30PM", "notes": "Batu Ferringhi Beach, 11100 Batu Ferringhi, Pulau Pinang | PARKROYAL Penang Resort, Batu Ferringhi, 11100 Penang, Malaysia", "poi_id": "gustoso-by-the-beach", "occurrence_id": "day-4-gustoso-by-the-beach", "canonical_name": "Gustoso By The Beach", "plan_type": "fixed", "option_group": "", "option_label": "", "sort_index": 20, "verification": "confirmed", "verification_method": "google_maps_search,user_confirmed_address,google_places_text_search", "verification_provider": "google_places", "provider_place_id": "ChIJ8Yd4oYjdSjARHYQlByz3QZY", "provider_query": "Gustoso By The Beach PARKROYAL Penang Resort, Batu Ferringhi, 11100 Penang, Malaysia", "location_mode": "international", "map_display": "include_confirmed", "source": "map-manifest"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [100.3381096, 5.4093728]}, "properties": {"name": "Hean Boo Thean 观音庙", "type": "attraction", "day": 4, "hours": "Daylight hours", "notes": "52, Pengkalan Weld, George Town, 10300 George Town, Pulau Pinang | 52A, Weld Quay, 10300 George Town, Penang, Malaysia", "poi_id": "hean-boo-thean", "occurrence_id": "day-4-hean-boo-thean", "canonical_name": "Hean Boo Thean 观音庙", "plan_type": "fixed", "option_group": "", "option_label": "", "sort_index": 21, "verification": "confirmed", "verification_method": "nominatim,google_maps_search,google_places_text_search", "verification_provider": "google_places", "provider_place_id": "ChIJw9hTVu3DSjARByDfsDZROhw", "provider_query": "Hean Boo Thean 观音庙 52A, Weld Quay, 10300 George Town, Penang, Malaysia", "location_mode": "international", "map_display": "include_confirmed", "source": "map-manifest"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [100.20394770000001, 5.3400647]}, "properties": {"name": "Balik Pulau", "type": "attraction", "day": 5, "hours": "白天", "notes": "11000, Penang | Balik Pulau town center, 11000 Penang, Malaysia", "poi_id": "balik-pulau", "occurrence_id": "day-5-balik-pulau", "canonical_name": "Balik Pulau", "plan_type": "fixed", "option_group": "", "option_label": "", "sort_index": 22, "verification": "confirmed", "verification_method": "google_maps_search,nominatim,google_places_text_search", "verification_provider": "google_places", "provider_place_id": "ChIJw_hlqlPqSjAR57t90qZCWqk", "provider_query": "Balik Pulau Balik Pulau town center, 11000 Penang, Malaysia", "location_mode": "international", "map_display": "include_confirmed", "source": "map-manifest"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [100.2006921, 5.3536682]}, "properties": {"name": "Balik Pulau Local Restaurants", "type": "restaurant", "day": 5, "hours": "Lunch时段", "notes": "60 & 62, Taman Prestij III, Jln Kuala Jalan Baru, Jalan Bharu, 11000 Balik Pulau, Pulau Pinang | Day 5 午餐锚点，位于 Balik Pulau 小镇中心。", "poi_id": "balik-pulau-local-restaurants", "occurrence_id": "day-5-balik-pulau-local-restaurants", "canonical_name": "Balik Pulau Local Restaurants", "plan_type": "fixed", "option_group": "", "option_label": "", "sort_index": 23, "verification": "confirmed", "verification_method": "google_maps_search,google_places_text_search", "verification_provider": "google_places", "provider_place_id": "ChIJJ797QnXrSjARJ8xkx0FPgS0", "provider_query": "Balik Pulau Local Restaurants Balik Pulau town center, 11000 Penang, Malaysia", "location_mode": "international", "map_display": "include_confirmed", "source": "map-manifest"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [100.2751656, 5.2959898]}, "properties": {"name": "PEN Airport Departure", "type": "transport", "day": 5, "hours": "全天", "notes": "11900 Bayan Lepas, Penang | Penang International Airport, 11900 Bayan Lepas, Penang, Malaysia", "poi_id": "penang-airport-departure", "occurrence_id": "day-5-pen-airport-departure", "canonical_name": "PEN Airport Departure", "plan_type": "fixed", "option_group": "", "option_label": "", "sort_index": 23, "verification": "confirmed", "verification_method": "google_maps_search,nominatim,google_places_text_search", "verification_provider": "google_places", "provider_place_id": "ChIJb27SAeS_SjARUoo9S2zdOys", "provider_query": "PEN Airport Departure Penang International Airport, 11900 Bayan Lepas, Penang, Malaysia", "location_mode": "international", "map_display": "include_confirmed", "source": "map-manifest"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [100.3389323, 5.4159141]}, "properties": {"name": "Kawan Shop (Day 5 最后淘宝)", "type": "shopping", "day": 5, "hours": "Mon-Sat 9:30AM-5:30PM (Closed Sun)", "notes": "Ground Floor, 41, Lbh Chulia, Georgetown, 10200 George Town, Penang | Day 5 15:00-15:30 最后淘宝，41 Lebuh Chulia，Same address as Day 2", "poi_id": "kawan-shop", "occurrence_id": "day-5-kawan-shop", "canonical_name": "Kawan Shop", "plan_type": "fixed", "option_group": "", "option_label": "", "sort_index": 24, "verification": "confirmed", "verification_method": "nominatim,google_maps_search,google_places_text_search", "verification_provider": "google_places", "provider_place_id": "ChIJjZmOG47DSjARB5Ehbk8ViVE", "provider_query": "Kawan Shop Ground Floor, 41, Lebuh Chulia, Georgetown, Pulau Pinang, 10200", "location_mode": "international", "map_display": "include_confirmed", "source": "map-manifest"}}]};
+const CFG = {"__openclaw_meta": {"generator": "generate_intl_map.py", "generated_at": "2026-04-06T20:44:58.459203+08:00", "source_geojson_sha256": "42364092dc956a973abcb6b90886bbcfabcec7e0011df291b2daec6aeba0db37"}};
+
+const DC = {
+  1:{c:'#3b82f6',l:'#dbeafe',n:'Day 1'},2:{c:'#10b981',l:'#d1fae5',n:'Day 2'},
+  3:{c:'#f59e0b',l:'#fef3c7',n:'Day 3'},4:{c:'#ef4444',l:'#fee2e2',n:'Day 4'},
+  5:{c:'#8b5cf6',l:'#ede9fe',n:'Day 5'},6:{c:'#f97316',l:'#ffedd5',n:'Day 6'},
+  7:{c:'#06b6d4',l:'#cffafe',n:'Day 7'},0:{c:'#06b6d4',l:'#cffafe',n:'抵达日'}
+};
+const PI = {attraction:'🏛️',景点:'🏛️',restaurant:'🍜',餐厅:'🍜',hotel:'🏨',酒店:'🏨',transport:'🚉',交通:'🚉',shopping:'🛍️',购物:'🛍️',nature:'🌿',自然:'🌿',cafe:'☕',咖啡:'☕'};
+const pIcon = t => PI[(t||'').toLowerCase()] || '📍';
+
+const S = {
+  ft:[],en:new Set(),mk:[],rl:[],al:[],ls:null,le:null,notes:{},
+  day:null,ctx:null,open:true,seg:[],expanded:null,typeFilter:null,
+  darkMode:null,tileLayer:null,
+  checkedIn:new Set(), // indices of checked-in places
+  myLat:null,myLng:null, // current GPS position
+  watchId:null, // geolocation watch ID
+  companionMk:null, // companion marker on map
+  companionPulse:null, // companion pulse circle
+  fbRef:null, // firebase ref
+  myId:null, // my unique ID for firebase
+  companionConnected:false
+};
+let map,uMk,uPulse;
+
+function init(){
+  S.ft = (GJ.features||[]).filter(f=>f.geometry&&f.geometry.type==='Point'&&f.geometry.coordinates);
+  S.myId = localStorage.getItem('penang_myid') || ('u'+Math.random().toString(36).slice(2,8));
+  localStorage.setItem('penang_myid',S.myId);
+  loadSt(); loadCheckins();
+  initDarkMode();
+  map = L.map('map',{zoomControl:false}).setView([35,135.7],6);
+  applyTileLayer();
+  if(!S.en.size) S.ft.forEach((_,i)=>S.en.add(i));
+  mkAll(); buildChips(); render(); fitAll(); drawRt();
+  map.on('click',hideCtx);
+  document.addEventListener('click',e=>{if(!e.target.closest('.ctx')&&!e.target.closest('.prow'))hideCtx()});
+  // Start collapsed on mobile
+  if(window.innerWidth<768) document.getElementById('bstrip').classList.add('closed');
+  // Init enhancements
+  initGestures();
+  registerSW();
+  startGpsTracking();
+  initCompanion();
+  // Restore name
+  const savedName=localStorage.getItem('penang_myname');
+  if(savedName){
+    document.getElementById('myNameInput').value=savedName;
+    const mob=document.getElementById('myNameInputMobile');
+    if(mob)mob.value=savedName;
+  }
+  document.getElementById('myNameInput').addEventListener('change',e=>{
+    syncNameInputs(e.target.value);
+  });
+}
+
+// Sync name between desktop and mobile inputs
+function syncNameInputs(val){
+  localStorage.setItem('penang_myname',val);
+  document.getElementById('myNameInput').value=val;
+  const mob=document.getElementById('myNameInputMobile');
+  if(mob)mob.value=val;
+  updateFirebasePresence();
+}
+
+/* Persistence */
+function sk(){return 'tg_'+btoa(document.title).slice(0,16)}
+function saveSt(){try{localStorage.setItem(sk(),JSON.stringify({en:[...S.en],ls:S.ls,le:S.le,n:S.notes}))}catch(e){}}
+function loadSt(){try{const r=localStorage.getItem(sk());if(!r)return;const d=JSON.parse(r);if(d.en)S.en=new Set(d.en);S.ls=d.ls??null;S.le=d.le??null;S.notes=d.n||{}}catch(e){}}
+
+/* Helpers */
+function gDay(f){return f.properties.day||0}
+function gType(f){return f.properties.type||f.properties.category||'default'}
+function dc(d){return DC[d]||DC[0]}
+function enIdx(){return S.ft.reduce((a,_,i)=>{if(S.en.has(i))a.push(i);return a},[])}
+/* Visible sequence: scoped to active day filter so map and panel always match */
+function visSeq(i){
+  if(!S.en.has(i))return '';
+  const ei=enIdx();
+  // If a day filter is active, only count items in that day
+  if(S.day!==null){
+    const dayItems=ei.filter(j=>gDay(S.ft[j])===S.day);
+    const pos=dayItems.indexOf(i);
+    return pos>=0?pos+1:'';
+  }
+  return ei.indexOf(i)+1;
+}
+
+/* Markers */
+function mkIcon(i,f){
+  const d=gDay(f),c=dc(d),on=S.en.has(i),isS=S.ls===i,isE=S.le===i;
+  const t=gType(f),ic=pIcon(t);
+  let seq='';if(on){seq=visSeq(i)}
+  const bg=on?c.l:'#f3f4f6';
+  const bdr=isS?'3px solid #059669':isE?'3px solid #dc2626':`2px solid ${on?c.c:'#d1d5db'}`;
+  const badgeBg=isS?'#059669':isE?'#dc2626':c.c;
+  const badgeLbl=isS?'🚩':isE?'🏁':seq;
+  const opa=on?1:.4;
+  return L.divIcon({
+    html:`<div class="mk-wrap" style="opacity:${opa}">
+      <div class="mk-body" style="background:${bg};border:${bdr}">${ic}</div>
+      ${badgeLbl?`<div class="mk-badge" style="background:${badgeBg}">${badgeLbl}</div>`:''}
+    </div>`,
+    className:'custom-marker',iconSize:[38,38],iconAnchor:[19,19],popupAnchor:[0,-22]
+  });
+}
+function mkAll(){
+  S.mk.forEach(m=>map.removeLayer(m));S.mk=[];
+  S.ft.forEach((f,i)=>{
+    const c=f.geometry.coordinates;
+    const m=L.marker([c[1],c[0]],{icon:mkIcon(i,f)}).addTo(map).bindPopup(popup(i,f));
+    m.on('contextmenu',e=>{e.originalEvent.preventDefault();showCtx(e.originalEvent,i)});
+    let lt;
+    m.on('mousedown touchstart',()=>{lt=setTimeout(()=>{const p=map.latLngToContainerPoint(m.getLatLng());showCtx({clientX:p.x,clientY:p.y},i)},600)});
+    m.on('mouseup touchend mouseleave',()=>clearTimeout(lt));
+    S.mk.push(m);
+  });
+}
+function popup(i,f){
+  const p=f.properties,t=gType(f),ic=pIcon(t);
+  const rat=p.rating?`<span style="color:#f59e0b;font-weight:600">${p.rating}</span> (${p.rating_platform||''})` :'';
+  return `<div style="font-family:Inter,sans-serif;min-width:170px;max-width:240px">
+    <div style="font-size:14px;font-weight:600;margin-bottom:3px">${ic} ${p.name||p.name_local||''}</div>
+    ${p.name_local&&p.name_local!==p.name?`<div style="font-size:11px;color:#6b7280">${p.name_local}</div>`:''}
+    ${rat?`<div style="margin-top:3px;font-size:12px">⭐ ${rat}</div>`:''}
+    ${p.hours?`<div style="font-size:11px;color:#6b7280;margin-top:3px">🕐 ${p.hours}</div>`:''}
+    ${p.admission?`<div style="font-size:11px;color:#6b7280">🎫 ${p.admission}</div>`:''}
+    ${p.price_range?`<div style="font-size:11px;color:#6b7280">💰 ${p.price_range}</div>`:''}
+    <div style="margin-top:6px;display:flex;gap:8px">
+      <a href="${navUrl(f)}" target="_blank" style="font-size:11px;color:#3b82f6;text-decoration:none;font-weight:600">🧭 导航</a>
+      ${p.source_url?`<a href="${p.source_url}" target="_blank" style="font-size:11px;color:#3b82f6;text-decoration:none;font-weight:600">🔗 详情</a>`:''}
+    </div>
+  </div>`;
+}
+function navUrl(f){
+  const [lng,lat]=f.geometry.coordinates;
+  // Always use Google Maps web URL — works on all platforms, user can choose app
+  return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
+}
+function refreshMk(){
+  S.ft.forEach((f,i)=>{
+    const m=S.mk[i];if(!m)return;
+    m.setIcon(mkIcon(i,f));
+    const d=gDay(f),t=gType(f);
+    // Day filter
+    let vis=S.day===null||d===S.day;
+    // Type filter (from filter chips)
+    if(S.typeFilter&&t!==S.typeFilter)vis=false;
+    m.setOpacity(vis?(S.en.has(i)?1:.35):.08);
+  });
+}
+
+/* Day Chips */
+function buildChips(){
+  const el=document.getElementById('chips');
+  const ds=new Set(S.ft.map(gDay));
+  if(ds.size<=1){el.style.display='none';return}
+  let h=`<div class="chip on" style="background:var(--blue);color:#fff" onclick="fDay(null)">全部</div>`;
+  [...ds].sort((a,b)=>a-b).forEach(d=>{
+    if(!d)return;const c=dc(d);
+    h+=`<div class="chip" data-d="${d}" onclick="fDay(${d})" style="color:${c.c}"><span class="chip-dot" style="background:${c.c}"></span>${c.n}</div>`;
+  });
+  el.innerHTML=h;
+}
+function fDay(d){
+  S.day=d;
+  document.querySelectorAll('.chip').forEach(c=>{
+    const cd=c.dataset.d;
+    if(d===null){c.classList.toggle('on',!cd);if(!cd){c.style.background='var(--blue)';c.style.color='#fff'}else{c.style.background='';c.style.color=dc(+cd).c}}
+    else{c.classList.toggle('on',cd==d);if(cd==d){c.style.background=dc(d).c;c.style.color='#fff'}else{c.style.background='';c.style.color=cd?dc(+cd).c:''}}
+  });
+  refreshMk();render();drawRt();
+}
+
+/* Filter Type (itinerary filter only — no Overpass) */
+function filterType(t){
+  if(S.typeFilter===t){S.typeFilter=null}else{S.typeFilter=t}
+  document.querySelectorAll('.fchip').forEach(c=>{
+    c.classList.toggle('on',c.dataset.ft===S.typeFilter);
+  });
+  refreshMk();render();
+}
+
+
+/* Nearby POI toggle — pure search, no itinerary filtering */
+function nearbyToggle(type){
+  if(activeNearby===type){
+    clearNearby();
+    document.querySelectorAll('.tchip').forEach(c=>c.classList.remove('on'));
+    return;
+  }
+  clearNearby();
+  document.querySelectorAll('.tchip').forEach(c=>c.classList.remove('on'));
+  document.querySelectorAll('.tchip').forEach(c=>{if(c.dataset.type===type)c.classList.add('on')});
+  doNearbySearch(type);
+}
+const OVERPASS_TAGS={
+  restaurant:{tags:['amenity=restaurant','amenity=fast_food','amenity=food_court'],icon:'🍜',label:'餐饮'},
+  attraction:{tags:['tourism=attraction','tourism=museum','tourism=viewpoint'],icon:'🏛️',label:'景点'},
+  hotel:{tags:['tourism=hotel','tourism=guest_house','tourism=hostel'],icon:'🏨',label:'酒店'},
+  transport:{tags:['amenity=bus_station','railway=station','amenity=ferry_terminal'],icon:'🚉',label:'交通'},
+  shopping:{tags:['shop=supermarket','shop=mall','shop=department_store'],icon:'🛒',label:'商超'},
+  nature:{tags:['leisure=park','leisure=garden','natural=beach'],icon:'🌿',label:'自然'},
+  cafe:{tags:['amenity=cafe'],icon:'☕',label:'咖啡'},
+  convenience:{tags:['shop=convenience'],icon:'🏪',label:'便利店'},
+  toilets:{tags:['amenity=toilets'],icon:'🚻',label:'厕所'},
+  atm:{tags:['amenity=atm'],icon:'🏧',label:'ATM'},
+  pharmacy:{tags:['amenity=pharmacy'],icon:'💊',label:'药店'}
+};
+let nearbyMarkers=[];
+let activeNearby=null;
+
+function clearNearby(){
+  nearbyMarkers.forEach(m=>map.removeLayer(m));
+  nearbyMarkers=[];
+  activeNearby=null;
+}
+
+
+
+
+async function doNearbySearch(type){
+  const q=OVERPASS_TAGS[type];
+  if(!q)return;
+  clearNearby();
+  activeNearby=type;
+  showToast(`<div class="spinner"></div> 搜索附近${q.label}...`);
+  
+  const bounds=map.getBounds();
+  const bbox=`${bounds.getSouth()},${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()}`;
+  // Use simpler node-only queries for speed
+  const tagQueries=q.tags.map(t=>{
+    const [k,v]=t.split('=');
+    return `node["${k}"="${v}"](${bbox});`;
+  }).join('');
+  const query=`[out:json][timeout:8];(${tagQueries});out body 30;`;
+  console.log('[Overpass]',type,query);
+  
+  // Try multiple Overpass servers
+  const OVERPASS_SERVERS=[
+    'https://overpass.kumi.systems/api/interpreter',
+    'https://overpass-api.de/api/interpreter',
+    'https://overpass.private.coffee/api/interpreter'
+  ];
+  
+  let elems=null;
+  for(const srv of OVERPASS_SERVERS){
+    try{
+      const c=new AbortController();
+      const tid=setTimeout(()=>c.abort(),10000);
+      const res=await fetch(srv,{
+        method:'POST',
+        headers:{'Content-Type':'application/x-www-form-urlencoded'},
+        body:'data='+encodeURIComponent(query),
+        signal:c.signal
+      });
+      clearTimeout(tid);
+      if(!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data=await res.json();
+      elems=data.elements||[];
+      console.log('[Overpass] OK via',srv,'Results:',elems.length);
+      break;
+    }catch(e){
+      console.warn('[Overpass] Failed:',srv,e.message);
+    }
+  }
+  
+  if(elems===null){
+    showToast(`❌ 搜索失败，服务器繁忙，请稍后重试`,3000);
+    clearNearby();
+    return;
+  }
+  
+  elems.forEach(el=>{
+    if(!el.lat||!el.lon)return;
+    const name=el.tags?.name||el.tags?.['name:en']||el.tags?.['name:zh']||q.label;
+    const icon=L.divIcon({
+      html:`<div class="poi-dot">${q.icon}</div>`,
+      className:'poi-marker',iconSize:[24,24],iconAnchor:[12,12]
+    });
+    const m=L.marker([el.lat,el.lon],{icon}).addTo(map)
+      .bindPopup(`<div style="font-family:Inter,sans-serif;font-size:13px">
+        <b>${q.icon} ${name}</b>
+        ${el.tags?.opening_hours?`<br><span style="color:#6b7280;font-size:11px">🕐 ${el.tags.opening_hours}</span>`:''}
+        ${el.tags?.brand?`<br><span style="color:#6b7280;font-size:11px">${el.tags.brand}</span>`:''}
+        ${el.tags?.cuisine?`<br><span style="color:#6b7280;font-size:11px">🍴 ${el.tags.cuisine}</span>`:''}
+        <br><a href="https://www.google.com/maps/dir/?api=1&destination=${el.lat},${el.lon}" target="_blank" style="color:#3b82f6;font-size:11px;font-weight:600">🧭 导航</a>
+      </div>`);
+    nearbyMarkers.push(m);
+  });
+  
+  showToast(`✅ 找到 ${elems.length} 个附近${q.label}`,2500);
+}
+
+/* Panel */
+function togglePanel(){
+  const bs=document.getElementById('bstrip');
+  S.open=!S.open;
+  bs.classList.toggle('closed',!S.open);
+  // Reset inline styles from gesture dragging
+  const panel=document.getElementById('panel');
+  panel.style.maxHeight='';panel.style.opacity='';
+}
+function render(){
+  const el=document.getElementById('list');
+  const ei=enIdx();
+  // Day + Type filter
+  const vis=S.ft.map((f,i)=>({f,i})).filter(x=>{
+    if(S.day!==null&&gDay(x.f)!==S.day)return false;
+    if(S.typeFilter&&gType(x.f)!==S.typeFilter)return false;
+    return true;
+  });
+  const dayCount=vis.filter(x=>S.en.has(x.i)).length;
+  document.getElementById('cnt').textContent=dayCount;
+  let h='';
+  vis.forEach(({f,i})=>{
+    const p=f.properties,on=S.en.has(i),d=gDay(f),c=dc(d),t=gType(f),ic=pIcon(t);
+    const seq=on?visSeq(i):'–';
+    let tag='';
+    if(S.ls===i)tag='<span class="tag tag-start">🚩 起点</span>';
+    if(S.le===i)tag='<span class="tag tag-end">🏁 终点</span>';
+    const expanded=S.expanded===i;
+    const ci=S.checkedIn.has(i);
+    const ciBadge=ci?'<span class="checkin-badge">✓ 已到达</span>':'';
+    h+=`<div class="prow${on?'':' off'}" data-idx="${i}" onclick="expandPlace(${i})" oncontextmenu="event.preventDefault();showCtx(event,${i})">
+      <div class="drag-handle" data-drag="${i}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="10" x2="16" y2="10"/><line x1="8" y1="14" x2="16" y2="14"/><line x1="8" y1="18" x2="16" y2="18"/></svg></div>
+      <div class="pnum" style="background:${on?(ci?'#059669':c.c):'#d1d5db'};cursor:pointer" onclick="event.stopPropagation();toggle(${i})" title="${on?'点击移除':'点击加入'}">${on?(ci?'✓':seq):'–'}</div>
+      <div class="pinfo">
+        <div class="pname">${ic} ${p.name||''} ${tag} ${ciBadge}</div>
+        <div class="pmeta">${p.rating?`<span class="rat">⭐${p.rating}</span> · `:''}${p.hours||''}${p.price_range?' · '+p.price_range:''}${p.admission?' · '+p.admission:''}</div>
+      </div>
+      <button class="pbtn${on?'':' active'}" onclick="event.stopPropagation();toggle(${i})" title="${on?'移除':'加入'}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${on
+          ?'<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>'
+          :'<path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/>'}
+        </svg>
+      </button>
+      <button class="pbtn" onclick="event.stopPropagation();flyTo(${i})" title="定位">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" fill="currentColor" stroke="none"/></svg>
+      </button>
+    </div>`;
+    // Detail card — multi-platform ratings
+    let ratHtml='';
+    if(p.ratings&&p.ratings.length){
+      ratHtml='<div class="rat-row">'+p.ratings.map(r=>{
+        const inner=`⭐ <span class="rp-score">${r.score}</span> <span class="rp-src">${r.platform}</span>`;
+        return r.url?`<a class="rat-pill" href="${r.url}" target="_blank" onclick="event.stopPropagation()">${inner}</a>`
+          :`<span class="rat-pill">${inner}</span>`;
+      }).join('')+'</div>';
+    } else if(p.rating){
+      const rUrl=p.rating_url||'';
+      const inner=`⭐ <span class="rp-score">${p.rating}</span> <span class="rp-src">${p.rating_platform||'Google Maps'}</span>`;
+      ratHtml='<div class="rat-row">'+(rUrl?`<a class="rat-pill" href="${rUrl}" target="_blank" onclick="event.stopPropagation()">${inner}</a>`:`<span class="rat-pill">${inner}</span>`)+'</div>';
+    }
+    h+=`<div class="pdetail${expanded?' open':''}" id="pd-${i}">
+      <div class="pdetail-inner">
+        ${p.name_local&&p.name_local!==p.name?`<div class="dl"><span class="dl-k">原名</span><span class="dl-v">${p.name_local}</span></div>`:''}
+        ${ratHtml?`<div class="dl"><span class="dl-k">评分</span><span class="dl-v">${ratHtml}</span></div>`:''}  
+        ${p.hours?`<div class="dl"><span class="dl-k">营业</span><span class="dl-v">${p.hours}</span></div>`:''}
+        ${p.admission?`<div class="dl"><span class="dl-k">门票</span><span class="dl-v">${p.admission}</span></div>`:''}
+        ${p.price_range?`<div class="dl"><span class="dl-k">人均</span><span class="dl-v">${p.price_range}</span></div>`:''}
+        ${p.source?`<div class="dl"><span class="dl-k">来源</span><span class="dl-v">${p.source}</span></div>`:''}
+        ${p.notes?`<div class="notes">💡 ${p.notes}</div>`:''}
+        <a class="nav-link" href="${navUrl(f)}" target="_blank" onclick="event.stopPropagation()">🧭 导航到此</a>
+      </div>
+    </div>`;
+    // Segment between
+    if(on&&S.seg.length){
+      const pos=ei.indexOf(i);
+      if(pos>=0&&pos<S.seg.length&&S.seg[pos]){
+        const sg=S.seg[pos];
+        h+=`<div class="seg"><div class="seg-line" style="background:${c.c}"></div>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 17H4a2 2 0 01-2-2V5a2 2 0 012-2h16a2 2 0 012 2v10a2 2 0 01-2 2h-1"/><polygon points="12 15 17 21 7 21 12 15"/></svg>
+          ${fmtDur(sg.duration)} · ${fmtDist(sg.distance)}</div>`;
+      }
+    }
+  });
+  el.innerHTML=h||'<div style="padding:20px;text-align:center;color:#9ca3af;font-size:13px">暂无地点</div>';
+  updSummary();
+  initDragReorder();
+}
+function expandPlace(i){
+  // Toggle expanded state — if same, collapse; otherwise expand new
+  if(S.expanded===i){S.expanded=null}else{S.expanded=i;flyTo(i)}
+  // Toggle detail panels without full re-render for smooth animation
+  document.querySelectorAll('.pdetail').forEach(d=>{
+    const id=parseInt(d.id.replace('pd-',''));
+    d.classList.toggle('open',id===S.expanded);
+  });
+}
+function toggle(i){
+  if(S.en.has(i)){S.en.delete(i);if(S.ls===i)S.ls=null;if(S.le===i)S.le=null}else S.en.add(i);
+  saveSt();refreshMk();render();drawRt();
+}
+function flyTo(i){
+  const [lng,lat]=S.ft[i].geometry.coordinates;
+  map.flyTo([lat,lng],16,{duration:.8});S.mk[i].openPopup();
+}
+
+/* OSRM (multi-server failover + transport mode) */
+let transportMode='driving';
+const OSRM_PROFILES={
+  driving:['https://routing.openstreetmap.de/routed-car','https://router.project-osrm.org'],
+  walking:['https://routing.openstreetmap.de/routed-foot'],
+  cycling:['https://routing.openstreetmap.de/routed-bike']
+};
+function setTransport(mode){
+  transportMode=mode;
+  document.querySelectorAll('.tmode').forEach(t=>t.classList.toggle('on',t.dataset.mode===mode));
+  drawRt();
+}
+async function osrmFetch(path){
+  const servers=OSRM_PROFILES[transportMode]||OSRM_PROFILES.driving;
+  for(const srv of servers){
+    try{
+      const c=new AbortController();
+      const t=setTimeout(()=>c.abort(),8000);
+      const r=await fetch(srv+path,{signal:c.signal});
+      clearTimeout(t);
+      if(r.ok){const d=await r.json();if(d.code==='Ok')return d}
+    }catch(e){console.warn('[OSRM] Server failed:',srv,e.message)}
+  }
+  return null;
+}
+async function osrmRoute(wp){
+  if(wp.length<2)return null;
+  const profile=transportMode||'driving';
+  const path=`/route/v1/${profile}/${wp.map(p=>`${p[0]},${p[1]}`).join(';')}?overview=full&geometries=geojson&steps=false`;
+  const d=await osrmFetch(path);
+  if(d&&d.routes&&d.routes.length)return d.routes[0];
+  // Fallback: straight line
+  const [a,b]=wp;
+  const dist=haversine(a[1],a[0],b[1],b[0]);
+  return{distance:dist,duration:dist/500*60,geometry:{type:'LineString',coordinates:wp}};
+}
+function haversine(lat1,lon1,lat2,lon2){
+  const R=6371000,p=Math.PI/180;
+  const a=Math.sin((lat2-lat1)*p/2)**2+Math.cos(lat1*p)*Math.cos(lat2*p)*Math.sin((lon2-lon1)*p/2)**2;
+  return 2*R*Math.asin(Math.sqrt(a));
+}
+async function osrmTable(wp){
+  if(wp.length<2)return null;
+  const path=`/table/v1/driving/${wp.map(p=>`${p[0]},${p[1]}`).join(';')}?annotations=duration,distance`;
+  const d=await osrmFetch(path);
+  if(d)return{dur:d.durations,dist:d.distances};
+  // Fallback: compute haversine matrix
+  const n=wp.length,dur=[],dist=[];
+  for(let i=0;i<n;i++){dur[i]=[];dist[i]=[];for(let j=0;j<n;j++){const dd=haversine(wp[i][1],wp[i][0],wp[j][1],wp[j][0]);dist[i][j]=dd;dur[i][j]=dd/500*60}}
+  return{dur,dist};
+}
+
+/* Draw Routes */
+async function drawRt(){
+  S.rl.forEach(l=>map.removeLayer(l));S.al.forEach(l=>map.removeLayer(l));
+  S.rl=[];S.al=[];S.seg=[];
+  let ri=enIdx();
+  if(S.day!==null)ri=ri.filter(i=>gDay(S.ft[i])===S.day);
+  if(ri.length<2){updSummary();return}
+  const wp=ri.map(i=>S.ft[i].geometry.coordinates);
+  const segs=[];
+  for(let i=0;i<ri.length-1;i++)segs.push(osrmRoute([wp[i],wp[i+1]]));
+  const sr=await Promise.all(segs);
+  let td=0,tt=0;S.seg=[];
+  sr.forEach((r,si)=>{
+    if(!r){S.seg.push(null);return}
+    S.seg.push({distance:r.distance,duration:r.duration});
+    td+=r.distance;tt+=r.duration;
+    const co=r.geometry.coordinates.map(c=>[c[1],c[0]]);
+    const d=gDay(S.ft[ri[si]]),cl=dc(d).c;
+    S.rl.push(L.polyline(co,{color:'#1e293b',weight:7,opacity:.15,lineCap:'round'}).addTo(map));
+    S.rl.push(L.polyline(co,{color:cl,weight:4,opacity:.9,lineCap:'round',lineJoin:'round'}).addTo(map));
+    addArrows(co,cl);
+  });
+  S._totalDist=td;S._totalDur=tt;
+  updSummary();render();
+}
+function addArrows(co,cl){
+  if(co.length<2)return;
+  let tl=0;for(let i=1;i<co.length;i++)tl+=map.distance(co[i-1],co[i]);
+  const na=Math.max(2,Math.min(6,Math.floor(tl/2000))),iv=tl/(na+1);
+  let tr=0,ai=1;
+  for(let i=1;i<co.length&&ai<=na;i++){
+    tr+=map.distance(co[i-1],co[i]);
+    if(tr>=iv*ai){
+      const b=bearing(co[i-1],co[i]);
+      const ic=L.divIcon({html:`<div style="transform:rotate(${b}deg);font-size:12px;color:${cl};text-shadow:0 0 3px rgba(0,0,0,.3)">▶</div>`,className:'custom-marker',iconSize:[12,12],iconAnchor:[6,6]});
+      S.al.push(L.marker(co[i],{icon:ic,interactive:false}).addTo(map));ai++;
+    }
+  }
+}
+function bearing(a,b){
+  const [la1,lo1]=[a[0]*Math.PI/180,a[1]*Math.PI/180],[la2,lo2]=[b[0]*Math.PI/180,b[1]*Math.PI/180];
+  const dl=lo2-lo1,y=Math.sin(dl)*Math.cos(la2),x=Math.cos(la1)*Math.sin(la2)-Math.sin(la1)*Math.cos(la2)*Math.cos(dl);
+  return((Math.atan2(y,x)*180/Math.PI)+360)%360-90;
+}
+
+/* Toast */
+function showToast(msg,dur){const t=document.getElementById('toast');t.innerHTML=msg;t.classList.add('on');clearTimeout(t._t);if(dur)t._t=setTimeout(()=>t.classList.remove('on'),dur)}
+function hideToast(){document.getElementById('toast').classList.remove('on')}
+
+/* TSP */
+async function optimizeRoute(mode){
+  const ei=enIdx();
+  if(ei.length<3){showToast('⚠️ 至少需要 3 个地点才能优化路线',2500);return}
+  const labels={recommended:'推荐',shortest:'最短',fastest:'最快'};
+  showToast(`<div class="spinner"></div> 正在计算${labels[mode]||''}路线...`);
+  const wp=ei.map(i=>S.ft[i].geometry.coordinates);
+  const tb=await osrmTable(wp);
+  if(!tb){showToast('❌ 路线计算失败，请稍后重试',3000);return}
+  const n=ei.length,mx=mode==='fastest'?tb.dur:tb.dist;
+  let si=0,eI=null;
+  if(S.ls!==null){si=ei.indexOf(S.ls);if(si<0)si=0}
+  if(S.le!==null){eI=ei.indexOf(S.le);if(eI<0)eI=null}
+  const vis=new Set([si]),ord=[si];let cur=si;
+  const exE=eI!==null&&eI!==si;
+  while(ord.length<(exE?n-1:n)){
+    let bn=-1,bc=Infinity;
+    for(let j=0;j<n;j++){if(vis.has(j)||exE&&j===eI)continue;if(mx[cur][j]<bc){bc=mx[cur][j];bn=j}}
+    if(bn<0)break;vis.add(bn);ord.push(bn);cur=bn;
+  }
+  if(exE)ord.push(eI);
+  const ne=ord.map(i=>ei[i]),rf=ne.map(i=>S.ft[i]),of=S.ft.filter((_,i)=>!ei.includes(i));
+  S.ft=[...rf,...of];S.en=new Set(rf.map((_,i)=>i));
+  if(S.ls!==null)S.ls=0;if(S.le!==null)S.le=rf.length-1;
+  saveSt();mkAll();render();drawRt();
+  showToast(`✅ 已按「${labels[mode]||''}」优化路线`,2000);
+}
+
+/* Context Menu */
+function showCtx(e,i){if(e.preventDefault)e.preventDefault();S.ctx=i;const m=document.getElementById('ctx');m.style.left=Math.min(e.clientX,innerWidth-170)+'px';m.style.top=Math.min(e.clientY,innerHeight-180)+'px';m.classList.add('show')}
+function hideCtx(){document.getElementById('ctx').classList.remove('show')}
+function setStart(){S.ls=S.ctx;if(!S.en.has(S.ctx))S.en.add(S.ctx);saveSt();refreshMk();render();drawRt();hideCtx()}
+function setEnd(){S.le=S.ctx;if(!S.en.has(S.ctx))S.en.add(S.ctx);saveSt();refreshMk();render();drawRt();hideCtx()}
+function clearLock(){if(S.ls===S.ctx)S.ls=null;if(S.le===S.ctx)S.le=null;saveSt();refreshMk();render();hideCtx()}
+function navTo(){const f=S.ft[S.ctx];if(f)window.open(navUrl(f),'_blank');hideCtx()}
+
+/* Utils */
+function fmtDist(m){return!m&&m!==0?'—':m>=1000?(m/1000).toFixed(1)+'km':Math.round(m)+'m'}
+function fmtDur(s){if(!s&&s!==0)return'—';const h=Math.floor(s/3600),m=Math.round(s%3600/60);return h?h+'h'+m+'min':m+'min'}
+function updSummary(){
+  const el=document.getElementById('summary');
+  if(S._totalDist){el.innerHTML=`<span>📏 ${fmtDist(S._totalDist)}</span><span>⏱ ${fmtDur(S._totalDur)}</span>`}
+  else el.innerHTML='';
+}
+
+/* ===== DRAG TO REORDER ===== */
+function initDragReorder(){
+  const handles=document.querySelectorAll('.drag-handle');
+  handles.forEach(h=>{
+    h.addEventListener('touchstart',onDragStart,{passive:false});
+    h.addEventListener('mousedown',onDragStartMouse);
+  });
+}
+
+let dragState=null;
+
+function onDragStartMouse(e){
+  e.preventDefault();
+  const idx=parseInt(e.currentTarget.dataset.drag);
+  startDrag(idx,e.clientX,e.clientY);
+  document.addEventListener('mousemove',onDragMoveMouse);
+  document.addEventListener('mouseup',onDragEndMouse);
+}
+function onDragMoveMouse(e){moveDrag(e.clientY)}
+function onDragEndMouse(e){
+  endDrag();
+  document.removeEventListener('mousemove',onDragMoveMouse);
+  document.removeEventListener('mouseup',onDragEndMouse);
+}
+
+function onDragStart(e){
+  e.preventDefault();
+  const idx=parseInt(e.currentTarget.dataset.drag);
+  const t=e.touches[0];
+  startDrag(idx,t.clientX,t.clientY);
+  document.addEventListener('touchmove',onDragMoveTouch,{passive:false});
+  document.addEventListener('touchend',onDragEndTouch);
+  document.addEventListener('touchcancel',onDragEndTouch);
+}
+function onDragMoveTouch(e){e.preventDefault();moveDrag(e.touches[0].clientY)}
+function onDragEndTouch(){
+  endDrag();
+  document.removeEventListener('touchmove',onDragMoveTouch);
+  document.removeEventListener('touchend',onDragEndTouch);
+  document.removeEventListener('touchcancel',onDragEndTouch);
+}
+
+function startDrag(idx,x,y){
+  const row=document.querySelector(`.prow[data-idx="${idx}"]`);
+  if(!row)return;
+  // Create ghost
+  const ghost=document.createElement('div');
+  ghost.className='drag-ghost';
+  ghost.textContent=S.ft[idx].properties.name||'...';
+  ghost.style.left=(x+12)+'px';
+  ghost.style.top=(y-16)+'px';
+  document.body.appendChild(ghost);
+  
+  row.classList.add('dragging');
+  dragState={idx,ghost,startY:y,row};
+}
+
+function moveDrag(y){
+  if(!dragState)return;
+  const {ghost}=dragState;
+  ghost.style.top=(y-16)+'px';
+  
+  // Find target row under cursor
+  const rows=document.querySelectorAll('.prow:not(.dragging)');
+  rows.forEach(r=>r.classList.remove('drag-over-top','drag-over-bot'));
+  
+  for(const r of rows){
+    const rect=r.getBoundingClientRect();
+    if(y>=rect.top&&y<=rect.bottom){
+      const mid=rect.top+rect.height/2;
+      r.classList.add(y<mid?'drag-over-top':'drag-over-bot');
+      break;
+    }
+  }
+  
+  // Auto-scroll the list
+  const list=document.getElementById('list');
+  if(!list)return;
+  const lr=list.getBoundingClientRect();
+  if(y<lr.top+40)list.scrollTop-=8;
+  if(y>lr.bottom-40)list.scrollTop+=8;
+}
+
+function endDrag(){
+  if(!dragState)return;
+  const {idx,ghost,row}=dragState;
+  
+  // Find drop target
+  const overTop=document.querySelector('.prow.drag-over-top');
+  const overBot=document.querySelector('.prow.drag-over-bot');
+  const target=overTop||overBot;
+  
+  // Clean up visual state
+  document.querySelectorAll('.prow').forEach(r=>r.classList.remove('drag-over-top','drag-over-bot','dragging'));
+  ghost.remove();
+  
+  if(target){
+    const targetIdx=parseInt(target.dataset.idx);
+    if(targetIdx!==idx){
+      reorderPlace(idx,targetIdx,!!overBot);
+    }
+  }
+  
+  dragState=null;
+}
+
+function reorderPlace(fromIdx,toIdx,after){
+  // Save which features are enabled (by reference)
+  const enabledFeats=new Set([...S.en].map(i=>S.ft[i]));
+  const startFeat=S.ls!==null?S.ft[S.ls]:null;
+  const endFeat=S.le!==null?S.ft[S.le]:null;
+  const checkedFeats=new Set([...S.checkedIn].map(i=>S.ft[i]));
+  
+  // Remove feature from old position and insert at new
+  const feat=S.ft.splice(fromIdx,1)[0];
+  let insertAt=toIdx;
+  if(fromIdx<toIdx)insertAt--;
+  if(after)insertAt++;
+  S.ft.splice(insertAt,0,feat);
+  
+  // Rebuild sets with new indices
+  S.en=new Set();
+  S.checkedIn=new Set();
+  S.ft.forEach((f,i)=>{
+    if(enabledFeats.has(f))S.en.add(i);
+    if(checkedFeats.has(f))S.checkedIn.add(i);
+  });
+  S.ls=startFeat?S.ft.indexOf(startFeat):null;
+  S.le=endFeat?S.ft.indexOf(endFeat):null;
+  if(S.ls===-1)S.ls=null;
+  if(S.le===-1)S.le=null;
+  
+  // Rebuild everything
+  saveSt(); saveCheckins(); mkAll(); render(); drawRt();
+  showToast('✅ 已调整顺序，路线已更新',1800);
+}
+
+function fitAll(){
+  const ei=enIdx();
+  const pts=(ei.length?ei:S.ft.map((_,i)=>i)).map(i=>S.ft[i].geometry.coordinates).map(c=>[c[1],c[0]]);
+  if(!pts.length)return;pts.length===1?map.setView(pts[0],15):map.fitBounds(L.latLngBounds(pts),{padding:[50,50]});
+}
+function locateMe(){
+  if(!navigator.geolocation){
+    showToast('⚠️ 此浏览器不支持定位',2000);return;
+  }
+  // Check if we already have GPS position
+  if(S.myLat!==null){
+    map.flyTo([S.myLat,S.myLng],16,{duration:.8});
+    return;
+  }
+  // Try getting position - will fail on non-HTTPS
+  showToast('📍 正在获取位置...',2000);
+  navigator.geolocation.getCurrentPosition(p=>{
+    S.myLat=p.coords.latitude;S.myLng=p.coords.longitude;
+    map.flyTo([S.myLat,S.myLng],16,{duration:.8});
+    updateGpsDot();
+  },err=>{
+    if(err.code===1){
+      showToast('❌ 定位被拒绝，请在浏览器设置中允许定位权限',3000);
+    }else if(location.protocol!=='https:'&&location.hostname!=='localhost'){
+      showToast('⚠️ 定位需要 HTTPS，部署后即可使用',3000);
+    }else{
+      showToast('⚠️ 无法获取位置: '+err.message,3000);
+    }
+  },{enableHighAccuracy:true,timeout:10000});
+}
+
+function updateGpsDot(){
+  if(S.myLat===null)return;
+  const ll=[S.myLat,S.myLng];
+  if(uMk){uMk.setLatLng(ll)}else{
+    uMk=L.circleMarker(ll,{radius:7,fillColor:'#3b82f6',fillOpacity:1,color:'#fff',weight:3,className:'gps-pulse'}).addTo(map);
+    uPulse=L.circleMarker(ll,{radius:20,fillColor:'#3b82f6',fillOpacity:.15,color:'#3b82f6',weight:1,opacity:.3}).addTo(map);
+  }
+  if(uPulse)uPulse.setLatLng(ll);
+}
+
+/* ===== CONTINUOUS GPS TRACKING ===== */
+function startGpsTracking(){
+  if(!navigator.geolocation)return;
+  // Check if HTTPS or localhost
+  const secure=location.protocol==='https:'||location.hostname==='localhost'||location.hostname==='127.0.0.1';
+  if(!secure){
+    console.warn('[GPS] Geolocation blocked: requires HTTPS. Position tracking disabled on HTTP.');
+    return;
+  }
+  S.watchId=navigator.geolocation.watchPosition(pos=>{
+    S.myLat=pos.coords.latitude;
+    S.myLng=pos.coords.longitude;
+    updateGpsDot();
+    checkArrival(S.myLat,S.myLng);
+    updateFirebasePresence();
+  },err=>{
+    console.warn('[GPS]',err.message);
+  },{enableHighAccuracy:true,maximumAge:5000,timeout:15000});
+}
+
+/* ===== ARRIVAL DETECTION ===== */
+function checkArrival(lat,lng){
+  const THRESHOLD=100; // meters
+  S.ft.forEach((f,i)=>{
+    if(S.checkedIn.has(i))return;
+    if(!S.en.has(i))return;
+    const [pLng,pLat]=f.geometry.coordinates;
+    const dist=haversine(lat,lng,pLat,pLng);
+    if(dist<THRESHOLD){
+      S.checkedIn.add(i);
+      saveCheckins();
+      const name=f.properties.name||'';
+      showToast(`<div class="arrival-toast">✅ 已到达 ${name}</div>`,3000);
+      refreshMk(); render();
+      // Sync to Firebase
+      syncCheckin(i,true);
+    }
+  });
+}
+function saveCheckins(){localStorage.setItem('penang_checkins',JSON.stringify([...S.checkedIn]))}
+function loadCheckins(){
+  try{const d=localStorage.getItem('penang_checkins');if(d)S.checkedIn=new Set(JSON.parse(d))}catch(e){}
+}
+/* Search */
+document.getElementById('q').addEventListener('input',e=>{
+  const q=e.target.value.toLowerCase().trim();
+  document.querySelectorAll('.prow').forEach(r=>{r.style.display=!q||r.querySelector('.pname')?.textContent?.toLowerCase().includes(q)?'':'none'});
+});
+
+/* ===== DARK MODE ===== */
+function initDarkMode(){
+  const saved=localStorage.getItem('penang_dark');
+  if(saved!==null){S.darkMode=saved==='true'}else{S.darkMode=window.matchMedia('(prefers-color-scheme:dark)').matches}
+  applyDarkMode();
+  window.matchMedia('(prefers-color-scheme:dark)').addEventListener('change',e=>{if(localStorage.getItem('penang_dark')===null){S.darkMode=e.matches;applyDarkMode()}});
+}
+function applyDarkMode(){
+  document.documentElement.setAttribute('data-theme',S.darkMode?'dark':'light');
+  const fab=document.getElementById('fabDark');
+  if(fab)fab.classList.toggle('active',S.darkMode);
+  if(map&&S.tileLayer){map.removeLayer(S.tileLayer);applyTileLayer()}
+}
+function applyTileLayer(){
+  const darkUrl='https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+  const lightUrl='https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+  S.tileLayer=L.tileLayer(S.darkMode?darkUrl:lightUrl,{
+    attribution:'© <a href="https://openstreetmap.org/copyright">OSM</a> © <a href="https://carto.com/">CARTO</a>',
+    subdomains:'abcd',maxZoom:19
+  }).addTo(map);
+}
+function toggleDarkMode(){
+  S.darkMode=!S.darkMode;
+  localStorage.setItem('penang_dark',S.darkMode);
+  applyDarkMode();
+  showToast(S.darkMode?'🌙 暗色模式':'☀️ 亮色模式',1500);
+}
+
+/* ===== GESTURE PANEL (mobile swipe) ===== */
+function initGestures(){
+  if(window.innerWidth>=768)return;
+  const bs=document.getElementById('bstrip');
+  let startY=0,startH=0,isDragging=false,moved=false;
+  const handle=document.getElementById('gestureHandle');
+  const stripHead=bs.querySelector('.strip-head');
+  
+  function onTouchStart(e){
+    startY=e.touches[0].clientY;
+    const panel=document.getElementById('panel');
+    startH=panel.offsetHeight||0;
+    isDragging=true;moved=false;
+    bs.classList.add('dragging');
+  }
+  function onTouchMove(e){
+    if(!isDragging)return;
+    moved=true;
+    e.preventDefault();
+    const dy=startY-e.touches[0].clientY;
+    const panel=document.getElementById('panel');
+    const newH=Math.max(0,Math.min(window.innerHeight*0.7,startH+dy));
+    panel.style.maxHeight=newH+'px';
+    panel.style.opacity=newH>20?'1':'0';
+    panel.style.overflow='hidden';
+    if(newH>20){bs.classList.remove('closed');S.open=true}
+  }
+  function onTouchEnd(){
+    if(!isDragging)return;
+    isDragging=false;
+    bs.classList.remove('dragging');
+    const panel=document.getElementById('panel');
+    const h=panel.offsetHeight;
+    if(!moved){/* just a tap, let onclick handle */}
+    else if(h<80){
+      bs.classList.add('closed');S.open=false;
+      panel.style.maxHeight='';panel.style.opacity='';panel.style.overflow='';
+    }else{
+      bs.classList.remove('closed');S.open=true;
+      panel.style.maxHeight='55vh';panel.style.opacity='1';panel.style.overflow='auto';
+    }
+  }
+  [handle,stripHead].forEach(el=>{
+    el.addEventListener('touchstart',onTouchStart,{passive:false});
+    el.addEventListener('touchmove',onTouchMove,{passive:false});
+    el.addEventListener('touchend',onTouchEnd,{passive:true});
+  });
+}
+
+function getTodayDay(){
+  // Trip dates: Apr 10 = Day 1, Apr 11 = Day 2, ..., Apr 14 = Day 5
+  const tripStart=new Date('2026-04-10T00:00:00+08:00');
+  const now=new Date();
+  const diffDays=Math.floor((now-tripStart)/(1000*60*60*24))+1;
+  if(diffDays>=1&&diffDays<=5)return diffDays;
+  // Before trip, show Day 1; after trip, show Day 5
+  return diffDays<1?1:5;
+}
+function showTodayItinerary(){
+  const today=getTodayDay();
+  fDay(today);
+  showToast(`📅 已切换到 Day ${today} 行程`,1800);
+  // Open panel
+  const bs=document.getElementById('bstrip');
+  bs.classList.remove('closed');S.open=true;
+}
+function navigateNext(){
+  const today=getTodayDay();
+  // Apply day filter first
+  fDay(today);
+  const dayItems=enIdx().filter(i=>gDay(S.ft[i])===today);
+  if(!dayItems.length){showToast('⚠️ 今日无行程',2000);return}
+  // Smart: skip checked-in, find NEXT unvisited sorted by sort_index
+  const sorted=dayItems.sort((a,b)=>(S.ft[a].properties.sort_index||0)-(S.ft[b].properties.sort_index||0));
+  const nextUnvisited=sorted.find(i=>!S.checkedIn.has(i));
+  const target=nextUnvisited!==undefined?nextUnvisited:sorted[sorted.length-1];
+  const f=S.ft[target];
+  const name=f.properties.name||'下一站';
+  flyTo(target);
+  showToast(`🧭 ${name}`,2500);
+}
+
+/* ===== OFFLINE PRELOAD ===== */
+function showPreloadModal(){
+  document.getElementById('preloadModal').classList.add('show');
+  // Check current cache size
+  if(navigator.serviceWorker&&navigator.serviceWorker.controller){
+    navigator.serviceWorker.controller.postMessage({type:'GET_TILE_CACHE_SIZE'});
+  }
+}
+function hidePreloadModal(){document.getElementById('preloadModal').classList.remove('show')}
+function startPreload(){
+  const btn=document.getElementById('preloadBtn');
+  const status=document.getElementById('preloadStatus');
+  const progress=document.getElementById('preloadProgress');
+  btn.disabled=true;btn.textContent='预加载中...';
+  status.textContent='正在下载槟城区域地图瓦片...';
+  progress.style.width='10%';
+  
+  if(!navigator.serviceWorker||!navigator.serviceWorker.controller){
+    status.textContent='❌ Service Worker 未就绪';btn.disabled=false;btn.textContent='重试';
+    return;
+  }
+  
+  // Penang island bounds
+  const bounds={south:5.24,west:100.16,north:5.50,east:100.37};
+  navigator.serviceWorker.controller.postMessage({type:'PRELOAD_TILES',bounds,zooms:[13,14,15,16]});
+  progress.style.width='30%';
+  
+  const handler=e=>{
+    if(e.data.type==='PRELOAD_DONE'){
+      progress.style.width='100%';
+      status.textContent=`✅ 已缓存 ${e.data.count} 张新瓦片`;
+      btn.disabled=false;btn.textContent='完成';
+      navigator.serviceWorker.removeEventListener('message',handler);
+    }else if(e.data.type==='PRELOAD_ERROR'){
+      status.textContent=`❌ ${e.data.error}`;btn.disabled=false;btn.textContent='重试';
+      navigator.serviceWorker.removeEventListener('message',handler);
+    }else if(e.data.type==='TILE_CACHE_SIZE'){
+      status.textContent=`已缓存 ${e.data.count} 张瓦片 · 点击开始预加载`;
+    }
+  };
+  navigator.serviceWorker.addEventListener('message',handler);
+}
+
+/* ===== SERVICE WORKER REGISTRATION ===== */
+async function registerSW(){
+  if('serviceWorker' in navigator){
+    // SW only works on localhost or HTTPS
+    const isLocal=location.hostname==='localhost'||location.hostname==='127.0.0.1';
+    const isHTTPS=location.protocol==='https:';
+    if(!isLocal&&!isHTTPS){
+      console.warn('[SW] Skipped: requires HTTPS or localhost. Current:',location.protocol+'//'+location.hostname);
+      return;
+    }
+    try{
+      const reg=await navigator.serviceWorker.register('./sw.js');
+      console.log('[SW] Registered:',reg.scope);
+    }catch(e){console.warn('[SW] Registration failed:',e)}
+  }
+}
+
+/* ===== TIER 3: FIREBASE COMPANION SHARING ===== */
+const FB_CONFIG = {
+  apiKey: "AIzaSyAjl_XJcbBwOtedzMYvoUgfsmOr4ojVuOM",
+  databaseURL: "https://openclaw-geomap-default-rtdb.asia-southeast1.firebasedatabase.app"
+};
+let fbApp=null,fbDb=null;
+
+function initCompanion(){
+  try{
+    // Initialize Firebase only if SDK loaded
+    if(typeof firebase==='undefined'){
+      console.warn('[Companion] Firebase SDK not loaded, sharing disabled');
+      document.getElementById('companionSection').style.display='none';
+      return;
+    }
+    // Check if we have a saved room code
+    const savedRoom=localStorage.getItem('penang_room');
+    if(savedRoom){
+      connectToRoom(savedRoom);
+    }
+  }catch(e){console.warn('[Companion] Init error:',e)}
+}
+
+function toggleCompanion(){
+  if(S.companionConnected){
+    disconnectCompanion();
+    return;
+  }
+  // Prompt for room code
+  const room=prompt('输入共享房间码（两人输入同一个码即可连接）\n\n建议用简单的数字如 1234:','');
+  if(!room||!room.trim())return;
+  const code=room.trim().toLowerCase();
+  localStorage.setItem('penang_room',code);
+  connectToRoom(code);
+}
+
+function connectToRoom(roomCode){
+  if(typeof firebase==='undefined')return;
+  try{
+    if(!fbApp){
+      fbApp=firebase.initializeApp(FB_CONFIG);
+      fbDb=firebase.database();
+    }
+    const roomRef=fbDb.ref('rooms/'+roomCode);
+    S.fbRef=roomRef;
+    
+    // Set my presence
+    const myRef=roomRef.child('users/'+S.myId);
+    myRef.set({
+      name:document.getElementById('myNameInput').value||'旅伴',
+      lat:S.myLat||0,lng:S.myLng||0,
+      checkins:[...S.checkedIn],
+      lastSeen:Date.now(),
+      online:true
+    });
+    myRef.onDisconnect().update({online:false,lastSeen:Date.now()});
+    
+    // Listen for companion updates
+    roomRef.child('users').on('value',snap=>{
+      const users=snap.val()||{};
+      Object.keys(users).forEach(uid=>{
+        if(uid===S.myId)return;
+        const u=users[uid];
+        updateCompanionMarker(u);
+        updateCompanionCheckins(u);
+      });
+    });
+    
+    S.companionConnected=true;
+    // Update BOTH desktop and mobile toggle buttons
+    ['compToggle','compToggleMobile'].forEach(id=>{
+      const btn=document.getElementById(id);
+      if(btn){btn.innerHTML='<svg class="ic" viewBox="0 0 24 24" style="width:14px;height:14px;color:#ef4444"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> 断开连接';btn.style.color='var(--red)'}
+    });
+    showToast(`🔗 已连接房间 ${roomCode}`,2000);
+  }catch(e){
+    console.warn('[Companion] Connect error:',e);
+    showToast('❌ 连接失败: '+e.message,3000);
+  }
+}
+
+function disconnectCompanion(){
+  if(S.fbRef){
+    S.fbRef.child('users/'+S.myId).update({online:false});
+    S.fbRef.child('users').off();
+  }
+  if(S.companionMk){map.removeLayer(S.companionMk);S.companionMk=null}
+  if(S.companionPulse){map.removeLayer(S.companionPulse);S.companionPulse=null}
+  S.companionConnected=false;
+  localStorage.removeItem('penang_room');
+  ['compToggle','compToggleMobile'].forEach(id=>{
+    const btn=document.getElementById(id);
+    if(btn){btn.innerHTML='<svg class="ic" viewBox="0 0 24 24" style="width:14px;height:14px"><path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4-4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg> 连接旅伴';btn.style.color='var(--blue)'}
+  });
+  showToast('✂️ 已断开旅伴连接',1500);
+}
+
+function updateFirebasePresence(){
+  if(!S.companionConnected||!S.fbRef)return;
+  S.fbRef.child('users/'+S.myId).update({
+    name:document.getElementById('myNameInput').value||'旅伴',
+    lat:S.myLat||0,lng:S.myLng||0,
+    lastSeen:Date.now(),
+    online:true
+  });
+}
+
+function syncCheckin(idx,checked){
+  if(!S.companionConnected||!S.fbRef)return;
+  S.fbRef.child('users/'+S.myId+'/checkins').set([...S.checkedIn]);
+}
+
+function updateCompanionMarker(u){
+  if(!u.lat||!u.lng||!u.online){
+    if(S.companionMk){map.removeLayer(S.companionMk);S.companionMk=null}
+    if(S.companionPulse){map.removeLayer(S.companionPulse);S.companionPulse=null}
+    return;
+  }
+  const ll=[u.lat,u.lng];
+  const name=u.name||'旅伴';
+  if(S.companionMk){
+    S.companionMk.setLatLng(ll);
+    S.companionPulse.setLatLng(ll);
+  }else{
+    // Companion marker: orange dot
+    S.companionMk=L.circleMarker(ll,{radius:7,fillColor:'#f97316',fillOpacity:1,color:'#fff',weight:3}).addTo(map)
+      .bindPopup(`<div style="font-family:Inter;font-size:13px"><b>🧡 ${name}</b><br><span style="font-size:11px;color:#6b7280">旅伴实时位置</span></div>`);
+    S.companionPulse=L.circleMarker(ll,{radius:20,fillColor:'#f97316',fillOpacity:.12,color:'#f97316',weight:1,opacity:.3}).addTo(map);
+  }
+}
+
+function updateCompanionCheckins(u){
+  // Visual indicator: if companion checked in somewhere, we could show it
+  // For now just log — could add companion badges to POI list
+  if(u.checkins&&u.checkins.length){
+    console.log('[Companion] Checked in at:',u.checkins.map(i=>S.ft[i]?.properties?.name));
+  }
+}
+
+document.addEventListener('DOMContentLoaded',init);
+</script>
+</body>
+</html>

@@ -730,16 +730,12 @@ function filterType(t){
 
 /* Nearby POI toggle — pure search, no itinerary filtering */
 function nearbyToggle(type){
-  if(activeNearby===type){
-    clearNearby();
-    document.querySelectorAll('.tchip').forEach(c=>c.classList.remove('on'));
-    return;
-  }
   clearNearby();
   document.querySelectorAll('.tchip').forEach(c=>c.classList.remove('on'));
   document.querySelectorAll('.tchip').forEach(c=>{if(c.dataset.type===type)c.classList.add('on')});
   doNearbySearch(type);
 }
+
 const OVERPASS_TAGS={
   restaurant:{tags:['amenity=restaurant','amenity=fast_food','amenity=food_court'],icon:'🍜',label:'餐饮'},
   attraction:{tags:['tourism=attraction','tourism=museum','tourism=viewpoint'],icon:'🏛️',label:'景点'},
@@ -757,7 +753,9 @@ let nearbyMarkers=[];
 let activeNearby=null;
 
 function clearNearby(){
-  nearbyMarkers.forEach(m=>map.removeLayer(m));
+  nearbyMarkers.forEach(m=>{ try{ map.removeLayer(m); }catch(e){} });
+  if(window.__nearbyLayer){ try{ map.removeLayer(window.__nearbyLayer); }catch(e){} }
+  window.__nearbyLayer=null;
   nearbyMarkers=[];
   activeNearby=null;
 }
@@ -798,6 +796,9 @@ async function doNearbySearch(type){
     return;
   }
 
+  if(window.__nearbyLayer){ try{ map.removeLayer(window.__nearbyLayer); }catch(e){} }
+  window.__nearbyLayer=L.layerGroup().addTo(map);
+
   local.forEach(f=>{
     const el={
       lat:f.geometry.coordinates[1],
@@ -814,7 +815,7 @@ async function doNearbySearch(type){
       html:`<div class="poi-dot">${q.icon}</div>`,
       className:'poi-marker',iconSize:[24,24],iconAnchor:[12,12]
     });
-    const m=L.marker([el.lat,el.lon],{icon}).addTo(map)
+    const m=L.marker([el.lat,el.lon],{icon}).addTo(window.__nearbyLayer)
       .bindPopup(`<div style="font-family:Inter,sans-serif;font-size:13px">
         <b>${q.icon} ${name}</b>
         ${el.tags?.opening_hours?`<br><span style="color:#6b7280;font-size:11px">🕐 ${el.tags.opening_hours}</span>`:''}

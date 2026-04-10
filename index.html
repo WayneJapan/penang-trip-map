@@ -812,9 +812,43 @@ async function doNearbySearch(type){
   }
   
   if(elems===null){
-    showToast(`❌ 搜索失败，服务器繁忙，请稍后重试`,3000);
-    clearNearby();
-    return;
+    // fallback: local nearby search from itinerary POIs
+    const center=map.getCenter();
+    const local=(GJ.features||[]).filter(f=>{
+      const c=f?.geometry?.coordinates;
+      if(!c||c.length<2)return false;
+      const ft=gType(f);
+      const match=(type==='convenience' && ['shopping'].includes(ft))
+        || (type==='toilets' && ['hotel','attraction','shopping','transport'].includes(ft))
+        || (type==='restaurant' && ['restaurant','cafe'].includes(ft))
+        || (type==='hotel' && ['hotel'].includes(ft))
+        || (type==='attraction' && ['attraction','nature','shopping'].includes(ft))
+        || (type==='transport' && ['transport'].includes(ft))
+        || (type==='shopping' && ['shopping'].includes(ft))
+        || (type==='cafe' && ['cafe','restaurant'].includes(ft))
+        || (type==='atm' && ['shopping','transport'].includes(ft))
+        || (type==='pharmacy' && ['shopping'].includes(ft));
+      if(!match) return false;
+      const lat=c[1], lon=c[0];
+      const d=map.distance(center,[lat,lon]);
+      f.__nearbyDistance=d;
+      return d<=1500;
+    }).sort((a,b)=>(a.__nearbyDistance||0)-(b.__nearbyDistance||0)).slice(0,8);
+    if(!local.length){
+      showToast(`❌ 附近搜索暂不可用，也没有本地候选`,3000);
+      clearNearby();
+      return;
+    }
+    elems=local.map(f=>({
+      lat:f.geometry.coordinates[1],
+      lon:f.geometry.coordinates[0],
+      tags:{
+        name:f.properties?.name||q.label,
+        opening_hours:f.properties?.hours||'',
+        brand:'Local fallback',
+        cuisine:f.properties?.type==='restaurant'?'local itinerary':''
+      }
+    }));
   }
   
   elems.forEach(el=>{

@@ -770,88 +770,46 @@ async function doNearbySearch(type){
   if(!q)return;
   clearNearby();
   activeNearby=type;
-  showToast(`<div class="spinner"></div> 搜索附近${q.label}...`,1500);
-  
-  const bounds=map.getBounds();
-  const bbox=`${bounds.getSouth()},${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()}`;
-  // Use simpler node-only queries for speed
-  const tagQueries=q.tags.map(t=>{
-    const [k,v]=t.split('=');
-    return `node["${k}"="${v}"](${bbox});`;
-  }).join('');
-  const query=`[out:json][timeout:8];(${tagQueries});out body 30;`;
-  console.log('[Overpass]',type,query);
-  
-  // Try multiple Overpass servers
-  const OVERPASS_SERVERS=[
-    'https://overpass.kumi.systems/api/interpreter'
-  ];
-  
-  let elems=null;
-  for(const srv of OVERPASS_SERVERS){
-    try{
-      const c=new AbortController();
-      const tid=setTimeout(()=>c.abort(),2200);
-      const res=await fetch(srv,{
-        method:'POST',
-        headers:{'Content-Type':'application/x-www-form-urlencoded'},
-        body:'data='+encodeURIComponent(query),
-        signal:c.signal
-      });
-      clearTimeout(tid);
-      if(!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data=await res.json();
-      elems=data.elements||[];
-      console.log('[Overpass] OK via',srv,'Results:',elems.length);
-      break;
-    }catch(e){
-      console.warn('[Overpass] Failed:',srv,e.message);
-    }
+  const center=map.getCenter();
+  const local=(GJ.features||[]).filter(f=>{
+    const c=f?.geometry?.coordinates;
+    if(!c||c.length<2)return false;
+    const ft=gType(f);
+    const match=(type==='convenience' && ['shopping'].includes(ft))
+      || (type==='toilets' && ['hotel','attraction','shopping','transport'].includes(ft))
+      || (type==='restaurant' && ['restaurant','cafe'].includes(ft))
+      || (type==='hotel' && ['hotel'].includes(ft))
+      || (type==='attraction' && ['attraction','nature','shopping'].includes(ft))
+      || (type==='transport' && ['transport'].includes(ft))
+      || (type==='shopping' && ['shopping'].includes(ft))
+      || (type==='cafe' && ['cafe','restaurant'].includes(ft))
+      || (type==='atm' && ['shopping','transport'].includes(ft))
+      || (type==='pharmacy' && ['shopping'].includes(ft));
+    if(!match) return false;
+    const lat=c[1], lon=c[0];
+    const d=map.distance(center,[lat,lon]);
+    f.__nearbyDistance=d;
+    return d<=2000;
+  }).sort((a,b)=>(a.__nearbyDistance||0)-(b.__nearbyDistance||0)).slice(0,8);
+
+  if(!local.length){
+    showToast(`❌ 当前视野附近没有可用${q.label}候选`,3000);
+    clearNearby();
+    return;
   }
-  
-  if(elems===null){
-    // fallback: local nearby search from itinerary POIs
-    const center=map.getCenter();
-    const local=(GJ.features||[]).filter(f=>{
-      const c=f?.geometry?.coordinates;
-      if(!c||c.length<2)return false;
-      const ft=gType(f);
-      const match=(type==='convenience' && ['shopping'].includes(ft))
-        || (type==='toilets' && ['hotel','attraction','shopping','transport'].includes(ft))
-        || (type==='restaurant' && ['restaurant','cafe'].includes(ft))
-        || (type==='hotel' && ['hotel'].includes(ft))
-        || (type==='attraction' && ['attraction','nature','shopping'].includes(ft))
-        || (type==='transport' && ['transport'].includes(ft))
-        || (type==='shopping' && ['shopping'].includes(ft))
-        || (type==='cafe' && ['cafe','restaurant'].includes(ft))
-        || (type==='atm' && ['shopping','transport'].includes(ft))
-        || (type==='pharmacy' && ['shopping'].includes(ft));
-      if(!match) return false;
-      const lat=c[1], lon=c[0];
-      const d=map.distance(center,[lat,lon]);
-      f.__nearbyDistance=d;
-      return d<=1500;
-    }).sort((a,b)=>(a.__nearbyDistance||0)-(b.__nearbyDistance||0)).slice(0,8);
-    if(!local.length){
-      showToast(`❌ 附近搜索暂不可用，也没有本地候选`,3000);
-      clearNearby();
-      return;
-    }
-    elems=local.map(f=>({
+
+  local.forEach(f=>{
+    const el={
       lat:f.geometry.coordinates[1],
       lon:f.geometry.coordinates[0],
       tags:{
         name:f.properties?.name||q.label,
         opening_hours:f.properties?.hours||'',
-        brand:'Local fallback',
+        brand:'Local nearby',
         cuisine:f.properties?.type==='restaurant'?'local itinerary':''
       }
-    }));
-  }
-  
-  elems.forEach(el=>{
-    if(!el.lat||!el.lon)return;
-    const name=el.tags?.name||el.tags?.['name:en']||el.tags?.['name:zh']||q.label;
+    };
+    const name=el.tags?.name||q.label;
     const icon=L.divIcon({
       html:`<div class="poi-dot">${q.icon}</div>`,
       className:'poi-marker',iconSize:[24,24],iconAnchor:[12,12]
@@ -866,8 +824,8 @@ async function doNearbySearch(type){
       </div>`);
     nearbyMarkers.push(m);
   });
-  
-  showToast(`✅ 找到 ${elems.length} 个附近${q.label}`,2500);
+
+  showToast(`✅ 找到 ${local.length} 个附近${q.label}`,2500);
 }
 
 /* Panel */

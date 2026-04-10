@@ -90,6 +90,15 @@ svg.ic{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;strok
 .fab{width:42px;height:42px;border-radius:50%;background:var(--surface);box-shadow:var(--shadow-md);display:flex;align-items:center;justify-content:center;color:var(--text2);transition:all .15s}
 .fab:hover{color:var(--blue);box-shadow:var(--shadow-lg)}
 
+/* ===== DRAG TO REORDER ===== */
+.drag-handle{width:28px;display:flex;align-items:center;justify-content:center;color:var(--text2);cursor:grab;flex-shrink:0;touch-action:none;-webkit-user-select:none;user-select:none}
+.drag-handle:active{cursor:grabbing}
+.drag-handle svg{width:16px;height:16px}
+.prow.dragging{opacity:.4;background:var(--hover)}
+.prow.drag-over-top{box-shadow:inset 0 3px 0 var(--blue)}
+.prow.drag-over-bot{box-shadow:inset 0 -3px 0 var(--blue)}
+.drag-ghost{position:fixed;z-index:9999;pointer-events:none;opacity:.85;background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow-lg);padding:8px 14px;font-size:13px;font-weight:600;max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
 /* ===== BOTTOM STRIP (compact, non-intrusive) ===== */
 .bot-strip{position:fixed;bottom:0;left:0;right:0;z-index:900;transition:transform .3s cubic-bezier(.4,0,.2,1);padding-bottom:env(safe-area-inset-bottom,8px)}
 .bot-strip.closed .panel{max-height:0;padding:0 16px;overflow:hidden;opacity:0}
@@ -644,7 +653,268 @@ async function doNearbySearch(type){
 
 /* Panel */
 function togglePanel(){
-  const bs=document.getElementById('bstrip');
+  
+
+/* ===== DRAG TO REORDER ===== */
+function initDragReorder(){
+  const handles=document.querySelectorAll('.drag-handle');
+  handles.forEach(h=>{
+    h.addEventListener('touchstart',onDragStart,{passive:false});
+    h.addEventListener('mousedown',onDragStartMouse);
+  });
+}
+
+let dragState=null;
+
+function onDragStartMouse(e){
+  e.preventDefault();
+  const idx=parseInt(e.currentTarget.dataset.drag);
+  startDrag(idx,e.clientX,e.clientY);
+  document.addEventListener('mousemove',onDragMoveMouse);
+  document.addEventListener('mouseup',onDragEndMouse);
+}
+function onDragMoveMouse(e){moveDrag(e.clientY)}
+function onDragEndMouse(e){
+  endDrag();
+  document.removeEventListener('mousemove',onDragMoveMouse);
+  document.removeEventListener('mouseup',onDragEndMouse);
+}
+
+function onDragStart(e){
+  e.preventDefault();
+  const idx=parseInt(e.currentTarget.dataset.drag);
+  const t=e.touches[0];
+  startDrag(idx,t.clientX,t.clientY);
+  document.addEventListener('touchmove',onDragMoveTouch,{passive:false});
+  document.addEventListener('touchend',onDragEndTouch);
+  document.addEventListener('touchcancel',onDragEndTouch);
+}
+function onDragMoveTouch(e){e.preventDefault();moveDrag(e.touches[0].clientY)}
+function onDragEndTouch(){
+  endDrag();
+  document.removeEventListener('touchmove',onDragMoveTouch);
+  document.removeEventListener('touchend',onDragEndTouch);
+  document.removeEventListener('touchcancel',onDragEndTouch);
+}
+
+function startDrag(idx,x,y){
+  const row=document.querySelector(`.prow[data-idx="${idx}"]`);
+  if(!row)return;
+  // Create ghost
+  const ghost=document.createElement('div');
+  ghost.className='drag-ghost';
+  ghost.textContent=S.ft[idx].properties.name||'...';
+  ghost.style.left=(x+12)+'px';
+  ghost.style.top=(y-16)+'px';
+  document.body.appendChild(ghost);
+  
+  row.classList.add('dragging');
+  dragState={idx,ghost,startY:y,row};
+}
+
+function moveDrag(y){
+  if(!dragState)return;
+  const {ghost}=dragState;
+  ghost.style.top=(y-16)+'px';
+  
+  // Find target row under cursor
+  const rows=document.querySelectorAll('.prow:not(.dragging)');
+  rows.forEach(r=>r.classList.remove('drag-over-top','drag-over-bot'));
+  
+  for(const r of rows){
+    const rect=r.getBoundingClientRect();
+    if(y>=rect.top&&y<=rect.bottom){
+      const mid=rect.top+rect.height/2;
+      r.classList.add(y<mid?'drag-over-top':'drag-over-bot');
+      break;
+    }
+  }
+  
+  // Auto-scroll the list
+  const list=document.getElementById('list');
+  if(!list)return;
+  const lr=list.getBoundingClientRect();
+  if(y<lr.top+40)list.scrollTop-=8;
+  if(y>lr.bottom-40)list.scrollTop+=8;
+}
+
+function endDrag(){
+  if(!dragState)return;
+  const {idx,ghost,row}=dragState;
+  
+  // Find drop target
+  const overTop=document.querySelector('.prow.drag-over-top');
+  const overBot=document.querySelector('.prow.drag-over-bot');
+  const target=overTop||overBot;
+  
+  // Clean up visual state
+  document.querySelectorAll('.prow').forEach(r=>r.classList.remove('drag-over-top','drag-over-bot','dragging'));
+  ghost.remove();
+  
+  if(target){
+    const targetIdx=parseInt(target.dataset.idx);
+    if(targetIdx!==idx){
+      reorderPlace(idx,targetIdx,!!overBot);
+    }
+  }
+  
+  dragState=null;
+}
+
+function reorderPlace(fromIdx,toIdx,after){
+  // Save which features are enabled (by reference)
+  const enabledFeats=new Set([...S.en].map(i=>S.ft[i]));
+  const startFeat=S.ls!==null?S.ft[S.ls]:null;
+  const endFeat=S.le!==null?S.ft[S.le]:null;
+  const checkedFeats=new Set([...S.checkedIn].map(i=>S.ft[i]));
+  
+  // Remove feature from old position and insert at new
+  const feat=S.ft.splice(fromIdx,1)[0];
+  let insertAt=toIdx;
+  if(fromIdx<toIdx)insertAt--;
+  if(after)insertAt++;
+  S.ft.splice(insertAt,0,feat);
+  
+  // Rebuild sets with new indices
+  S.en=new Set();
+  S.checkedIn=new Set();
+  S.ft.forEach((f,i)=>{
+    if(enabledFeats.has(f))S.en.add(i);
+    if(checkedFeats.has(f))S.checkedIn.add(i);
+  });
+  S.ls=startFeat?S.ft.indexOf(startFeat):null;
+  S.le=endFeat?S.ft.indexOf(endFeat):null;
+  if(S.ls===-1)S.ls=null;
+  if(S.le===-1)S.le=null;
+  
+  // Rebuild everything
+  saveSt(); saveCheckins(); mkAll(); render(); drawRt();
+  showToast('✅ 已调整顺序，路线已更新',1800);
+}
+
+function fitAll(){
+  const ei=enIdx();
+  const pts=(ei.length?ei:S.ft.map((_,i)=>i)).map(i=>S.ft[i].geometry.coordinates).map(c=>[c[1],c[0]]);
+  if(!pts.length)return;pts.length===1?map.setView(pts[0],15):map.fitBounds(L.latLngBounds(pts),{padding:[50,50]});
+}
+function locateMe(){
+  if(!navigator.geolocation){
+    showToast('⚠️ 此浏览器不支持定位',2000);return;
+  }
+  // Check if we already have GPS position
+  if(S.myLat!==null){
+    map.flyTo([S.myLat,S.myLng],16,{duration:.8});
+    return;
+  }
+  // Try getting position - will fail on non-HTTPS
+  showToast('📍 正在获取位置...',2000);
+  navigator.geolocation.getCurrentPosition(p=>{
+    S.myLat=p.coords.latitude;S.myLng=p.coords.longitude;
+    map.flyTo([S.myLat,S.myLng],16,{duration:.8});
+    updateGpsDot();
+  },err=>{
+    if(err.code===1){
+      showToast('❌ 定位被拒绝，请在浏览器设置中允许定位权限',3000);
+    }else if(location.protocol!=='https:'&&location.hostname!=='localhost'){
+      showToast('⚠️ 定位需要 HTTPS，部署后即可使用',3000);
+    }else{
+      showToast('⚠️ 无法获取位置: '+err.message,3000);
+    }
+  },{enableHighAccuracy:true,timeout:10000});
+}
+
+function updateGpsDot(){
+  if(S.myLat===null)return;
+  const ll=[S.myLat,S.myLng];
+  if(uMk){uMk.setLatLng(ll)}else{
+    uMk=L.circleMarker(ll,{radius:7,fillColor:'#3b82f6',fillOpacity:1,color:'#fff',weight:3,className:'gps-pulse'}).addTo(map);
+    uPulse=L.circleMarker(ll,{radius:20,fillColor:'#3b82f6',fillOpacity:.15,color:'#3b82f6',weight:1,opacity:.3}).addTo(map);
+  }
+  if(uPulse)uPulse.setLatLng(ll);
+}
+
+/* ===== CONTINUOUS GPS TRACKING ===== */
+function startGpsTracking(){
+  if(!navigator.geolocation)return;
+  // Check if HTTPS or localhost
+  const secure=location.protocol==='https:'||location.hostname==='localhost'||location.hostname==='127.0.0.1';
+  if(!secure){
+    console.warn('[GPS] Geolocation blocked: requires HTTPS. Position tracking disabled on HTTP.');
+    return;
+  }
+  S.watchId=navigator.geolocation.watchPosition(pos=>{
+    S.myLat=pos.coords.latitude;
+    S.myLng=pos.coords.longitude;
+    updateGpsDot();
+    checkArrival(S.myLat,S.myLng);
+    updateFirebasePresence();
+  },err=>{
+    console.warn('[GPS]',err.message);
+  },{enableHighAccuracy:true,maximumAge:5000,timeout:15000});
+}
+
+/* ===== ARRIVAL DETECTION ===== */
+function checkArrival(lat,lng){
+  const THRESHOLD=100; // meters
+  S.ft.forEach((f,i)=>{
+    if(S.checkedIn.has(i))return;
+    if(!S.en.has(i))return;
+    const [pLng,pLat]=f.geometry.coordinates;
+    const dist=haversine(lat,lng,pLat,pLng);
+    if(dist<THRESHOLD){
+      S.checkedIn.add(i);
+      saveCheckins();
+      const name=f.properties.name||'';
+      showToast(`<div class="arrival-toast">✅ 已到达 ${name}</div>`,3000);
+      refreshMk(); render();
+      // Sync to Firebase
+      syncCheckin(i,true);
+    }
+  });
+}
+function saveCheckins(){localStorage.setItem('penang_checkins',JSON.stringify([...S.checkedIn]))}
+function loadCheckins(){
+  try{const d=localStorage.getItem('penang_checkins');if(d)S.checkedIn=new Set(JSON.parse(d))}catch(e){}
+}
+/* Search */
+document.getElementById('q').addEventListener('input',e=>{
+  const q=e.target.value.toLowerCase().trim();
+  document.querySelectorAll('.prow').forEach(r=>{r.style.display=!q||r.querySelector('.pname')?.textContent?.toLowerCase().includes(q)?'':'none'});
+});
+
+/* ===== DARK MODE ===== */
+function initDarkMode(){
+  const saved=localStorage.getItem('penang_dark');
+  if(saved!==null){S.darkMode=saved==='true'}else{S.darkMode=window.matchMedia('(prefers-color-scheme:dark)').matches}
+  applyDarkMode();
+  window.matchMedia('(prefers-color-scheme:dark)').addEventListener('change',e=>{if(localStorage.getItem('penang_dark')===null){S.darkMode=e.matches;applyDarkMode()}});
+}
+function applyDarkMode(){
+  document.documentElement.setAttribute('data-theme',S.darkMode?'dark':'light');
+  const fab=document.getElementById('fabDark');
+  if(fab)fab.classList.toggle('active',S.darkMode);
+  if(map&&S.tileLayer){map.removeLayer(S.tileLayer);applyTileLayer()}
+}
+function applyTileLayer(){
+  const darkUrl='https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+  const lightUrl='https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+  S.tileLayer=L.tileLayer(S.darkMode?darkUrl:lightUrl,{
+    attribution:'© <a href="https://openstreetmap.org/copyright">OSM</a> © <a href="https://carto.com/">CARTO</a>',
+    subdomains:'abcd',maxZoom:19
+  }).addTo(map);
+}
+function toggleDarkMode(){
+  S.darkMode=!S.darkMode;
+  localStorage.setItem('penang_dark',S.darkMode);
+  applyDarkMode();
+  showToast(S.darkMode?'🌙 暗色模式':'☀️ 亮色模式',1500);
+}
+
+/* ===== GESTURE PANEL (mobile swipe) ===== */
+function initGestures(){
+  if(window.innerWidth>=768)return;
+  
+const bs=document.getElementById('bstrip');
   S.open=!S.open;bs.classList.toggle('closed',!S.open);
 }
 function render(){
@@ -667,6 +937,7 @@ function render(){
     if(S.le===i)tag='<span class="tag tag-end">🏁 终点</span>';
     const expanded=S.expanded===i;
     h+=`<div class="prow${on?'':' off'}" onclick="expandPlace(${i})" oncontextmenu="event.preventDefault();showCtx(event,${i})">
+      <div class="drag-handle" data-drag="${i}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="10" x2="16" y2="10"/><line x1="8" y1="14" x2="16" y2="14"/><line x1="8" y1="18" x2="16" y2="18"/></svg></div>
       <div class="pnum" style="background:${on?c.c:'#d1d5db'};cursor:pointer" onclick="event.stopPropagation();toggle(${i})" title="${on?'点击移除':'点击加入'}">${on?seq:'–'}</div>
       <div class="pinfo">
         <div class="pname">${ic} ${p.name||''} ${tag}</div>
@@ -720,6 +991,7 @@ function render(){
   });
   el.innerHTML=h||'<div style="padding:20px;text-align:center;color:#9ca3af;font-size:13px">暂无地点</div>';
   updSummary();
+  initDragReorder();
 }
 function expandPlace(i){
   // Toggle expanded state — if same, collapse; otherwise expand new

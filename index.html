@@ -768,7 +768,13 @@ async function doNearbySearch(type){
   if(!q)return;
   clearNearby();
   activeNearby=type;
-  const center=map.getCenter();
+  let center=map.getCenter();
+  const enabled=[...S.en];
+  if(enabled.length){
+    const last=enabled[enabled.length-1];
+    const fc=S.ft[last]?.geometry?.coordinates;
+    if(fc&&fc.length>=2) center=L.latLng(fc[1],fc[0]);
+  }
   const local=(GJ.features||[]).filter(f=>{
     const c=f?.geometry?.coordinates;
     if(!c||c.length<2)return false;

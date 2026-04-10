@@ -793,11 +793,11 @@ async function doNearbySearch(type){
     const lat=c[1], lon=c[0];
     const d=map.distance(center,[lat,lon]);
     f.__nearbyDistance=d;
-    return d<=2000;
+    return true;
   }).sort((a,b)=>(a.__nearbyDistance||0)-(b.__nearbyDistance||0)).slice(0,8);
 
   if(!local.length){
-    showToast(`❌ 当前视野附近没有可用${q.label}候选`,3000);
+    showToast(`❌ 当前行程中没有可用${q.label}候选`,3000);
     clearNearby();
     return;
   }

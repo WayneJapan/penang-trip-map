@@ -6,12 +6,15 @@
 //   - API (OSRM/Overpass): Network-Only (graceful fallback in app)
 // ============================================================
 
-const CACHE_NAME = 'penang-trip-v2';
+const CACHE_NAME = 'penang-trip-v3';
 const TILE_CACHE = 'penang-tiles-v1';
 const MAX_TILE_CACHE = 3000; // ~15 MB assuming ~5 KB/tile
 
 // Core app shell resources to pre-cache on install
 const APP_SHELL = [
+  './',
+  './index.html',
+  './penang-trip-map-nearby-fixed.html',
   './trip-map.html',
   './manifest.json',
   './icons/icon-192.png',
@@ -75,7 +78,7 @@ self.addEventListener('fetch', event => {
     }).catch(() => {
       // Ultimate fallback for navigation requests
       if (event.request.mode === 'navigate') {
-        return caches.match('./trip-map.html');
+        return caches.match('./index.html') || caches.match('./trip-map.html');
       }
     })
   );
